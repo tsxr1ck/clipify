@@ -23,7 +23,7 @@ import type { Character } from '@/services/api/charactersService';
 import { base64ToDataUrl } from '@/utils/imageProcessing';
 import {
     checkVeoAccess,
-    generateVideo,
+    generateVideoWithLogging,
     buildVideoPrompt,
 } from '@/services/api/geminiService';
 import { ErrorMessage } from '@/components/shared/ErrorMessage';
@@ -162,11 +162,25 @@ export function Step3_VideoGeneration() {
                 reader.readAsDataURL(imageBlob);
             });
 
-            const result = await generateVideo(
+            const result = await generateVideoWithLogging(
                 imageBase64,
                 prompt,
                 duration,
                 apiKey,
+                {
+                    styleId: selectedStyle.id,
+                    characterId: selectedCharacter.id,
+                    title: `Video: ${selectedCharacter.name} - ${accion.substring(0, 30)}`,
+                    sceneConfig: {
+                        escena,
+                        fondo,
+                        accion,
+                        dialogo,
+                        voiceStyle,
+                        movimiento,
+                        duration
+                    }
+                },
                 (message) => setProgressMessage(message)
             );
 

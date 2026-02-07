@@ -44,16 +44,16 @@ export interface CreditPackage {
 }
 
 export interface UsageSummary {
-    totalSpent: number;
-    totalGenerated: number;
     byType: {
-        image: number;
-        video: number;
-        style: number;
-    };
-    lastMonth: {
-        spent: number;
-        generated: number;
+        type: string;
+        count: number;
+        tokens: number;
+        costMxn: number;
+    }[];
+    last30Days: {
+        generations: number;
+        tokens: number;
+        costMxn: number;
     };
 }
 
@@ -65,7 +65,13 @@ export const creditsService = {
     async getBalance(): Promise<CreditsBalance> {
         try {
             const response = await apiClient.get('/credits/balance');
-            return response.data;
+            return {
+                ...response.data,
+                balance: Number(response.data.balance),
+                totalPurchased: Number(response.data.totalPurchased),
+                totalSpent: Number(response.data.totalSpent),
+                lowBalanceThreshold: Number(response.data.lowBalanceThreshold),
+            };
         } catch (error) {
             throw new Error(getErrorMessage(error));
         }
@@ -77,7 +83,15 @@ export const creditsService = {
     async getTransactions(params: TransactionsListParams = {}): Promise<TransactionsListResponse> {
         try {
             const response = await apiClient.get('/credits/transactions', { params });
-            return response.data;
+            return {
+                ...response.data,
+                transactions: response.data.transactions.map((tx: any) => ({
+                    ...tx,
+                    amountMxn: Number(tx.amountMxn),
+                    balanceBeforeMxn: Number(tx.balanceBeforeMxn),
+                    balanceAfterMxn: Number(tx.balanceAfterMxn),
+                })),
+            };
         } catch (error) {
             throw new Error(getErrorMessage(error));
         }
@@ -89,7 +103,12 @@ export const creditsService = {
     async getPackages(): Promise<CreditPackage[]> {
         try {
             const response = await apiClient.get('/credits/packages');
-            return response.data.packages;
+            return response.data.packages.map((pkg: any) => ({
+                ...pkg,
+                amountMxn: Number(pkg.amountMxn),
+                priceMxn: Number(pkg.amountMxn), // Assuming price is same as amount for now or check backend
+                bonusMxn: Number(pkg.bonusMxn || 0),
+            }));
         } catch (error) {
             throw new Error(getErrorMessage(error));
         }
@@ -113,11 +132,21 @@ export const creditsService = {
     async getUsageSummary(): Promise<UsageSummary> {
         try {
             const response = await apiClient.get('/credits/usage-summary');
-            return response.data;
+            return {
+                byType: response.data.byType.map((item: any) => ({
+                    ...item,
+                    costMxn: Number(item.costMxn),
+                })),
+                last30Days: {
+                    ...response.data.last30Days,
+                    costMxn: Number(response.data.last30Days.costMxn),
+                },
+            };
         } catch (error) {
             throw new Error(getErrorMessage(error));
         }
     },
+
 };
 
 export default creditsService;

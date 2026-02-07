@@ -75,6 +75,8 @@ export interface CreateGenerationData {
     prompt: string;
     sceneConfig?: SceneConfig;
     generationParams?: Record<string, unknown>;
+    folder?: string;
+    tags?: string[];
 }
 
 export interface CompleteGenerationData {

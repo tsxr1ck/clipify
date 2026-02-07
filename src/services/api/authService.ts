@@ -49,6 +49,12 @@ export const authService = {
         try {
             const response = await apiClient.post('/auth/login', { email, password });
             const { accessToken, refreshToken, user } = response.data;
+
+            // Ensure credits balance is a number
+            if (user.credits) {
+                user.credits.balance = Number(user.credits.balance);
+            }
+
             tokenStorage.setTokens(accessToken, refreshToken);
             return { accessToken, refreshToken, user };
         } catch (error) {
@@ -75,7 +81,14 @@ export const authService = {
     async me(): Promise<User> {
         try {
             const response = await apiClient.get('/auth/me');
-            return response.data;
+            const user = response.data;
+
+            // Ensure credits balance is a number
+            if (user.credits) {
+                user.credits.balance = Number(user.credits.balance);
+            }
+
+            return user;
         } catch (error) {
             throw new Error(getErrorMessage(error));
         }

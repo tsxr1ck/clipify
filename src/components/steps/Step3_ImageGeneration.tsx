@@ -19,7 +19,7 @@ import { stylesService, charactersService } from '@/services/api';
 import type { Style } from '@/services/api/stylesService';
 import type { Character } from '@/services/api/charactersService';
 import { base64ToDataUrl } from '@/utils/imageProcessing';
-import { generateImage, buildImagePrompt } from '@/services/api/geminiService';
+import { generateImageWithLogging, buildImagePrompt } from '@/services/api/geminiService';
 import { ErrorMessage } from '@/components/shared/ErrorMessage';
 import { ImageGeneratingModal } from '@/components/shared/ImageGeneratingModal';
 import { ImagePreviewModal } from '@/components/shared/ImagePreviewModal';
@@ -123,10 +123,16 @@ export function Step3_ImageGeneration() {
                 selectedCharacter.prompt
             );
 
-            const result = await generateImage(
+            const result = await generateImageWithLogging(
                 prompt,
                 aspectRatio,
-                apiKey
+                apiKey,
+                {
+                    styleId: selectedStyle.id,
+                    characterId: selectedCharacter.id,
+                    title: `Image: ${selectedCharacter.name} in ${escena.substring(0, 30)}`,
+                    tags: selectedStyle.keywords
+                }
             );
 
             setGeneratedImage({

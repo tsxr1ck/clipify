@@ -11,7 +11,7 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { useApiKey } from '@/context/ApplicationContext';
-import { generateCharacterImage, analyzeCharacterImage } from '@/services/api/geminiService';
+import { generateCharacterImageWithLogging, analyzeCharacterImageWithLogging } from '@/services/api/geminiService';
 import { charactersService, uploadService, type Character, type Style } from '@/services/api';
 import { ErrorMessage } from '@/components/shared/ErrorMessage';
 import type { AspectRatio } from '@/types';
@@ -82,7 +82,7 @@ export function CharacterCreator({
         setGeneratedImage(null);
 
         try {
-            const result = await generateCharacterImage(
+            const result = await generateCharacterImageWithLogging(
                 apiKey,
                 characterDescription.trim(),
                 selectedStyle.keywords,
@@ -108,7 +108,7 @@ export function CharacterCreator({
         setError(null);
 
         try {
-            const result = await analyzeCharacterImage(
+            const result = await analyzeCharacterImageWithLogging(
                 apiKey,
                 uploadedImage.base64,
                 uploadedImage.mimeType
@@ -133,7 +133,7 @@ export function CharacterCreator({
 
         try {
             // Use the character description with the style to generate new image
-            const result = await generateCharacterImage(
+            const result = await generateCharacterImageWithLogging(
                 apiKey,
                 characterDescription.trim(),
                 selectedStyle.keywords,
@@ -308,8 +308,8 @@ export function CharacterCreator({
                             <button
                                 onClick={() => setCreationMode('prompt')}
                                 className={`p-4 rounded-xl text-sm font-medium transition-all duration-200 flex items-center justify-center gap-2 ${creationMode === 'prompt'
-                                        ? 'bg-gradient-to-br from-purple-500 to-blue-500 text-white'
-                                        : 'glass hover:bg-primary/10'
+                                    ? 'bg-gradient-to-br from-purple-500 to-blue-500 text-white'
+                                    : 'glass hover:bg-primary/10'
                                     }`}
                             >
                                 <Type className="w-4 h-4" />
@@ -318,8 +318,8 @@ export function CharacterCreator({
                             <button
                                 onClick={() => setCreationMode('image')}
                                 className={`p-4 rounded-xl text-sm font-medium transition-all duration-200 flex items-center justify-center gap-2 ${creationMode === 'image'
-                                        ? 'bg-gradient-to-br from-purple-500 to-blue-500 text-white'
-                                        : 'glass hover:bg-primary/10'
+                                    ? 'bg-gradient-to-br from-purple-500 to-blue-500 text-white'
+                                    : 'glass hover:bg-primary/10'
                                     }`}
                             >
                                 <ImageIcon className="w-4 h-4" />

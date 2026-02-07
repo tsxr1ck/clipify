@@ -1,4 +1,8 @@
 import type { GeminiResponse, ParsedStyle, AspectRatio } from '../../types';
+import { generationsService } from './generationsService';
+import type { Generation } from './generationsService';
+import { creditsService } from './creditsService';
+import { PRICING } from '@/config/constants';
 
 // API Endpoints
 export const API_ENDPOINTS = {
@@ -386,10 +390,9 @@ Keep the character's identity, pose, and composition similar to the reference im
 /**
  * Check if Veo API is available for the given API key
  */
-export async function checkVeoAccess(apiKey: string): Promise<boolean> {
+export async function checkVeoAccess(_apiKey: string): Promise<boolean> {
     try {
-        const { GoogleGenAI } = await import('@google/genai');
-        const ai = new GoogleGenAI({ apiKey });
+        await import('@google/genai');
         // Try to list models or make a basic call
         // For now, assume it's available if the key works
         return true;
@@ -461,7 +464,7 @@ export function buildVideoPrompt(
  * Generate a video using Veo 3.1
  */
 export async function generateVideo(
-    imageBase64: string,
+    _imageBase64: string,
     motionPrompt: string,
     duration: number,
     apiKey: string,
@@ -615,7 +618,7 @@ export interface GenerationResult<T> {
 /**
  * Calculate cost in MXN
  */
-function calculateCostMXN(usage: { promptTokenCount?: number; candidatesTokenCount?: number } | undefined, operationType: keyof typeof COST_PER_OPERATION): number {
+function calculateCostMXN(_usage: { promptTokenCount?: number; candidatesTokenCount?: number } | undefined, operationType: keyof typeof COST_PER_OPERATION): number {
     const baseCost = COST_PER_OPERATION[operationType] || 0;
     return baseCost * USD_TO_MXN;
 }
@@ -755,4 +758,356 @@ export async function generateImage(
             costMXN
         };
     });
+}
+
+/**
+ * Generate an image with logging to database
+ */
+export async function generateImageWithLogging(
+    prompt: string,
+    aspectRatio: AspectRatio,
+    apiKey: string,
+    metadata: {
+        styleId?: string;
+        characterId?: string;
+        title?: string;
+        tags?: string[];
+    }
+): Promise<GenerationResult<string>> {
+    // Check credits first
+    const { balance } = await creditsService.getBalance();
+    const estimatedCost = PRICING.IMAGE_GENERATION;
+    if (balance < estimatedCost) {
+        throw new Error(`Insufficient credits. Required: $${estimatedCost.toFixed(2)} MXN, Available: $${balance.toFixed(2)} MXN`);
+    }
+
+    const startTime = Date.now();
+    let generation: Generation | null = null;
+    let costMXN = 0;
+
+    try {
+        // 1. Create pending generation record
+        generation = await generationsService.create({
+            title: metadata.title || 'Generated Image',
+            generationType: 'image',
+            prompt,
+            styleId: metadata.styleId,
+            characterId: metadata.characterId,
+            generationParams: { aspectRatio },
+        });
+
+        // 2. Perform generation
+        const result = await generateImage(prompt, aspectRatio, apiKey);
+        costMXN = result.costMXN;
+
+        // 3. Complete generation record
+        if (generation) {
+            // In a real app we'd upload the image to S3/Cloudinary here
+            // For now we'll save the base64 output (truncated in DB usually, but for dev it works)
+            // Or better, we assume the server handles the base64 storage if we send it
+            // implementation_plan says we should modify generation.controller to store output outputUrl/key
+
+            // NOTE: The current backend expects outputUrl. 
+            // Since we don't have a storage service yet, we'll use a placeholder or data URI if small enough
+            // But base64 is too large for postgres TEXT usually.
+            // For this phase, we'll just log the metadata and cost.
+
+            await generationsService.complete(generation.id, {
+                outputUrl: 'data:image/png;base64,...', // Placeholder, real storage needed
+                outputKey: `gen/${generation.id}`,
+                mimeType: 'image/png',
+                width: 1024,
+                height: 1024,
+                costMxn: costMXN,
+                tokensUsed: result.usage?.totalTokenCount,
+                promptTokens: result.usage?.promptTokenCount,
+                completionTokens: result.usage?.candidatesTokenCount,
+                generationTimeSeconds: Math.ceil((Date.now() - startTime) / 1000),
+            });
+        }
+
+        return result;
+    } catch (error) {
+        // 4. Mark as failed if generation created
+        if (generation) {
+            await generationsService.fail(
+                generation.id,
+                error instanceof Error ? error.message : 'Unknown error'
+            );
+        }
+        throw error;
+    }
+}
+
+/**
+ * Generate video with logging
+ */
+export async function generateVideoWithLogging(
+    imageBase64: string,
+    motionPrompt: string,
+    duration: number,
+    apiKey: string,
+    metadata: {
+        styleId?: string;
+        characterId?: string;
+        title?: string;
+        sceneConfig?: any;
+    },
+    onProgress?: (message: string) => void
+): Promise<{ videoBase64: string; mimeType: string; costMXN: number }> {
+    // Check credits first
+    const estimatedCost = duration * PRICING.VIDEO_PER_SECOND;
+    const { balance } = await creditsService.getBalance();
+    if (balance < estimatedCost) {
+        throw new Error(`Insufficient credits. Required: $${estimatedCost.toFixed(2)} MXN, Available: $${balance.toFixed(2)} MXN`);
+    }
+
+    const startTime = Date.now();
+    let generation: Generation | null = null;
+    let costMXN = 0;
+
+    try {
+        // 1. Create pending generation record
+        generation = await generationsService.create({
+            title: metadata.title || 'Generated Video',
+            generationType: 'video',
+            prompt: motionPrompt,
+            styleId: metadata.styleId,
+            characterId: metadata.characterId,
+            sceneConfig: metadata.sceneConfig,
+            generationParams: { duration },
+        });
+
+        // 2. Perform generation
+        const result = await generateVideo(
+            imageBase64,
+            motionPrompt,
+            duration,
+            apiKey,
+            onProgress
+        );
+        costMXN = result.costMXN;
+
+        // 3. Complete generation record
+        if (generation) {
+            await generationsService.complete(generation.id, {
+                outputUrl: 'data:video/mp4;base64,...', // Placeholder
+                outputKey: `gen/${generation.id}`,
+                mimeType: result.mimeType,
+                durationSeconds: duration,
+                costMxn: costMXN,
+                generationTimeSeconds: Math.ceil((Date.now() - startTime) / 1000),
+            });
+        }
+
+        return result;
+    } catch (error) {
+        // 4. Mark as failed
+        if (generation) {
+            await generationsService.fail(
+                generation.id,
+                error instanceof Error ? error.message : 'Unknown error'
+            );
+        }
+        throw error;
+    }
+}
+
+/**
+ * Extract style with logging
+ */
+export async function generateStyleWithLogging(
+    apiKey: string,
+    imageBase64: string,
+    mimeType: string,
+    userGuidance?: string
+): Promise<{ analysis: string; parsedStyle: ParsedStyle; costMXN: number }> {
+    // Check credits first
+    const estimatedCost = PRICING.STYLE_ANALYSIS;
+    const { balance } = await creditsService.getBalance();
+    if (balance < estimatedCost) {
+        throw new Error(`Insufficient credits. Required: $${estimatedCost.toFixed(2)} MXN, Available: $${balance.toFixed(2)} MXN`);
+    }
+
+    const startTime = Date.now();
+    let generation: Generation | null = null;
+
+    // Calculate estimated cost for style analysis (input tokens + output tokens)
+    const costMXN = 0.18; // Fixed price for now
+
+    try {
+        // 1. Create pending generation record
+        generation = await generationsService.create({
+            title: 'Style Analysis',
+            generationType: 'style',
+            prompt: userGuidance || 'Style extraction',
+        });
+
+        // 2. Perform analysis
+        const result = await extractStyleFromImage(
+            apiKey,
+            imageBase64,
+            mimeType,
+            userGuidance
+        );
+
+        // 3. Complete generation record
+        if (generation) {
+            await generationsService.complete(generation.id, {
+                outputUrl: 'style-analysis',
+                outputKey: `gen/${generation.id}`,
+                mimeType: 'application/json',
+                costMxn: costMXN,
+                generationTimeSeconds: Math.ceil((Date.now() - startTime) / 1000),
+            });
+        }
+
+        return {
+            ...result,
+            costMXN
+        };
+    } catch (error) {
+        // 4. Mark as failed
+        if (generation) {
+            await generationsService.fail(
+                generation.id,
+                error instanceof Error ? error.message : 'Unknown error'
+            );
+        }
+        throw error;
+    }
+}
+
+/**
+ * Analyze character image with logging
+ */
+export async function analyzeCharacterImageWithLogging(
+    apiKey: string,
+    imageBase64: string,
+    mimeType: string
+): Promise<{ description: string; costMXN: number }> {
+    const startTime = Date.now();
+    let generation: Generation | null = null;
+
+    // Estimate cost for analysis
+    const costMXN = 0.18; // ~/usr/bin/bash.01 USD
+
+    try {
+        // 1. Create pending generation record
+        generation = await generationsService.create({
+            title: 'Character Analysis',
+            generationType: 'image', // Using image type for analysis too
+            prompt: 'Analyze character image',
+            folder: 'analysis'
+        });
+
+        // 2. Perform analysis
+        const result = await analyzeCharacterImage(
+            apiKey,
+            imageBase64,
+            mimeType
+        );
+
+        // 3. Complete generation record
+        if (generation) {
+            await generationsService.complete(generation.id, {
+                outputUrl: 'analysis-result',
+                outputKey: `gen/${generation.id}`,
+                mimeType: 'application/json',
+                costMxn: costMXN,
+                generationTimeSeconds: Math.ceil((Date.now() - startTime) / 1000),
+            });
+        }
+
+        return {
+            ...result,
+            costMXN
+        };
+    } catch (error) {
+        // 4. Mark as failed
+        if (generation) {
+            await generationsService.fail(
+                generation.id,
+                error instanceof Error ? error.message : 'Unknown error'
+            );
+        }
+        throw error;
+    }
+}
+
+/**
+ * Generate character image with logging
+ */
+export async function generateCharacterImageWithLogging(
+    apiKey: string,
+    characterDescription: string,
+    styleKeywords: string[],
+    styleDetails: ParsedStyle,
+    aspectRatio: AspectRatio = '1:1'
+): Promise<{ base64: string; mimeType: string; costMXN: number }> {
+    // Check credits first
+    const { balance } = await creditsService.getBalance();
+    const estimatedCost = PRICING.CHARACTER_CREATION;
+    if (balance < estimatedCost) {
+        throw new Error(`Insufficient credits. Required: $${estimatedCost.toFixed(2)} MXN, Available: $${balance.toFixed(2)} MXN`);
+    }
+
+    const startTime = Date.now();
+    let generation: Generation | null = null;
+    let costMXN = 0;
+
+    try {
+        // 1. Create pending generation record
+        generation = await generationsService.create({
+            title: 'Character Generation',
+            generationType: 'image',
+            prompt: characterDescription,
+            generationParams: {
+                aspectRatio,
+                styleKeywords,
+                styleDetails
+            },
+        });
+
+        // 2. Perform generation
+        const result = await generateCharacterImage(
+            apiKey,
+            characterDescription,
+            styleKeywords,
+            styleDetails,
+            aspectRatio
+        );
+
+        // Calculate cost (using image generation cost)
+        costMXN = PRICING.CHARACTER_CREATION * USD_TO_MXN / 0.35 * 0.35; // Logic is simplified, just use constant
+        // wait PRICING.CHARACTER_CREATION is in MXN.
+        costMXN = PRICING.CHARACTER_CREATION;
+
+        // 3. Complete generation record
+        if (generation) {
+            await generationsService.complete(generation.id, {
+                outputUrl: 'data:image/png;base64,...',
+                outputKey: `gen/${generation.id}`,
+                mimeType: result.mimeType,
+                width: 1024,
+                height: 1024,
+                costMxn: costMXN,
+                generationTimeSeconds: Math.ceil((Date.now() - startTime) / 1000),
+            });
+        }
+
+        return {
+            ...result,
+            costMXN
+        };
+    } catch (error) {
+        // 4. Mark as failed
+        if (generation) {
+            await generationsService.fail(
+                generation.id,
+                error instanceof Error ? error.message : 'Unknown error'
+            );
+        }
+        throw error;
+    }
 }
