@@ -1,0 +1,328 @@
+// schema.prisma
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ==================== USERS & AUTH ====================
+
+model User {
+  id                       String    @id @default(uuid())
+  email                    String    @unique
+  passwordHash             String    @map("password_hash")
+  emailVerified            Boolean   @default(false) @map("email_verified")
+  verificationToken        String?   @map("verification_token")
+  verificationTokenExpires DateTime? @map("verification_token_expires")
+  resetToken               String?   @map("reset_token")
+  resetTokenExpires        DateTime? @map("reset_token_expires")
+  isActive                 Boolean   @default(true) @map("is_active")
+  role                     String    @default("user")
+  createdAt                DateTime  @default(now()) @map("created_at")
+  updatedAt                DateTime  @updatedAt @map("updated_at")
+  lastLoginAt              DateTime? @map("last_login_at")
+
+  // Relations
+  profile            UserProfile?
+  apiKeys            ApiKey[]
+  styles             Style[]
+  characters         Character[]
+  generations        Generation[]
+  credits            Credits?
+  creditTransactions CreditTransaction[]
+  usageMetrics       UsageMetric[]
+  sessions           Session[]
+
+  @@index([email])
+  @@index([createdAt])
+  @@map("users")
+}
+
+model UserProfile {
+  id                      String   @id @default(uuid())
+  userId                  String   @unique @map("user_id")
+  fullName                String?  @map("full_name")
+  avatarUrl               String?  @map("avatar_url")
+  bio                     String?
+  timezone                String   @default("UTC")
+  language                String   @default("en")
+  themePreference         String   @default("dark") @map("theme_preference")
+  notificationPreferences Json     @default("{}") @map("notification_preferences")
+  metadata                Json     @default("{}")
+  createdAt               DateTime @default(now()) @map("created_at")
+  updatedAt               DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("user_profiles")
+}
+
+model ApiKey {
+  id               String    @id @default(uuid())
+  userId           String    @map("user_id")
+  keyName          String    @default("Default Key") @map("key_name")
+  encryptedKey     String    @map("encrypted_key")
+  encryptionIv     String    @map("encryption_iv")
+  encryptionTag    String    @map("encryption_tag")
+  isActive         Boolean   @default(true) @map("is_active")
+  isPrimary        Boolean   @default(false) @map("is_primary")
+  lastValidatedAt  DateTime? @map("last_validated_at")
+  validationStatus String    @default("pending") @map("validation_status")
+  validationError  String?   @map("validation_error")
+  usageCount       Int       @default(0) @map("usage_count")
+  lastUsedAt       DateTime? @map("last_used_at")
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
+
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  usageMetrics UsageMetric[]
+
+  @@index([userId])
+  @@index([userId, isActive])
+  @@map("api_keys")
+}
+
+// ==================== STYLES & CHARACTERS ====================
+
+model Style {
+  id                     String   @id @default(uuid())
+  userId                 String   @map("user_id")
+  name                   String
+  description            String?
+  styleAnalysis          String?  @map("style_analysis")
+  parsedStyle            Json     @map("parsed_style")
+  keywords               String[]
+  referenceImageUrl      String   @map("reference_image_url")
+  referenceImageKey      String   @map("reference_image_key")
+  referenceImageThumbUrl String?  @map("reference_image_thumbnail_url")
+  userPrompt             String?  @map("user_prompt")
+  isPublic               Boolean  @default(false) @map("is_public")
+  publicSlug             String?  @unique @map("public_slug")
+  useCount               Int      @default(0) @map("use_count")
+  characterCount         Int      @default(0) @map("character_count")
+  viewCount              Int      @default(0) @map("view_count")
+  createdAt              DateTime @default(now()) @map("created_at")
+  updatedAt              DateTime @updatedAt @map("updated_at")
+
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  characters  Character[]
+  generations Generation[]
+
+  @@index([userId])
+  @@index([createdAt(sort: Desc)])
+  @@index([isPublic])
+  @@map("styles")
+}
+
+model Character {
+  id               String   @id @default(uuid())
+  userId           String   @map("user_id")
+  styleId          String   @map("style_id")
+  name             String
+  description      String?
+  prompt           String
+  combinedPrompt   String   @map("combined_prompt")
+  imageUrl         String   @map("image_url")
+  imageKey         String   @map("image_key")
+  thumbnailUrl     String?  @map("thumbnail_url")
+  aspectRatio      String   @map("aspect_ratio")
+  width            Int?
+  height           Int?
+  fileSizeBytes    BigInt?  @map("file_size_bytes")
+  generationParams Json     @default("{}") @map("generation_params")
+  useCount         Int      @default(0) @map("use_count")
+  generationCount  Int      @default(0) @map("generation_count")
+  isFavorite       Boolean  @default(false) @map("is_favorite")
+  tags             String[] @default([])
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  style       Style        @relation(fields: [styleId], references: [id], onDelete: Restrict)
+  generations Generation[]
+
+  @@index([userId])
+  @@index([styleId])
+  @@index([createdAt(sort: Desc)])
+  @@index([userId, isFavorite])
+  @@map("characters")
+}
+
+// ==================== GENERATIONS ====================
+
+model Generation {
+  id                    String    @id @default(uuid())
+  userId                String    @map("user_id")
+  characterId           String?   @map("character_id")
+  styleId               String?   @map("style_id")
+  title                 String
+  description           String?
+  generationType        String    @map("generation_type")
+  status                String    @default("pending")
+  prompt                String
+  sceneConfig           Json?     @map("scene_config")
+  generationParams      Json      @default("{}") @map("generation_params")
+  outputUrl             String?   @map("output_url")
+  outputKey             String?   @map("output_key")
+  thumbnailUrl          String?   @map("thumbnail_url")
+  thumbnailKey          String?   @map("thumbnail_key")
+  fileSizeBytes         BigInt?   @map("file_size_bytes")
+  mimeType              String?   @map("mime_type")
+  durationSeconds       Int?      @map("duration_seconds")
+  aspectRatio           String?   @map("aspect_ratio")
+  width                 Int?
+  height                Int?
+  apiModel              String?   @map("api_model")
+  apiResponse           Json?     @map("api_response")
+  errorMessage          String?   @map("error_message")
+  tokensUsed            Int       @default(0) @map("tokens_used")
+  promptTokens          Int       @default(0) @map("prompt_tokens")
+  completionTokens      Int       @default(0) @map("completion_tokens")
+  costUsd               Decimal   @default(0) @map("cost_usd") @db.Decimal(10, 4)
+  costMxn               Decimal   @default(0) @map("cost_mxn") @db.Decimal(10, 2)
+  exchangeRate          Decimal?  @map("exchange_rate") @db.Decimal(10, 4)
+  generationTimeSeconds Int?      @map("generation_time_seconds")
+  apiLatencyMs          Int?      @map("api_latency_ms")
+  isFavorite            Boolean   @default(false) @map("is_favorite")
+  tags                  String[]  @default([])
+  folder                String?
+  createdAt             DateTime  @default(now()) @map("created_at")
+  startedAt             DateTime? @map("started_at")
+  completedAt           DateTime? @map("completed_at")
+  updatedAt             DateTime  @updatedAt @map("updated_at")
+
+  user              User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  character         Character?          @relation(fields: [characterId], references: [id], onDelete: SetNull)
+  style             Style?              @relation(fields: [styleId], references: [id], onDelete: SetNull)
+  usageMetric       UsageMetric?
+  creditTransaction CreditTransaction[]
+
+  @@index([userId])
+  @@index([characterId])
+  @@index([styleId])
+  @@index([generationType])
+  @@index([status])
+  @@index([createdAt(sort: Desc)])
+  @@index([completedAt(sort: Desc)])
+  @@index([userId, isFavorite])
+  @@map("generations")
+}
+
+model UsageMetric {
+  id                String   @id @default(uuid())
+  userId            String   @map("user_id")
+  generationId      String?  @unique @map("generation_id")
+  apiKeyId          String?  @map("api_key_id")
+  apiEndpoint       String?  @map("api_endpoint")
+  apiModel          String?  @map("api_model")
+  operationType     String?  @map("operation_type")
+  promptTokens      Int      @default(0) @map("prompt_tokens")
+  completionTokens  Int      @default(0) @map("completion_tokens")
+  totalTokens       Int      @default(0) @map("total_tokens")
+  costUsd           Decimal  @default(0) @map("cost_usd") @db.Decimal(10, 4)
+  costMxn           Decimal  @default(0) @map("cost_mxn") @db.Decimal(10, 2)
+  exchangeRate      Decimal? @map("exchange_rate") @db.Decimal(10, 4)
+  latencyMs         Int?     @map("latency_ms")
+  responseSizeBytes Int?     @map("response_size_bytes")
+  requestPayload    Json?    @map("request_payload")
+  responseMetadata  Json?    @map("response_metadata")
+  success           Boolean  @default(true)
+  errorMessage      String?  @map("error_message")
+  createdAt         DateTime @default(now()) @map("created_at")
+
+  user       User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  generation Generation? @relation(fields: [generationId], references: [id], onDelete: Cascade)
+  apiKey     ApiKey?     @relation(fields: [apiKeyId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([generationId])
+  @@index([apiKeyId])
+  @@index([createdAt(sort: Desc)])
+  @@index([apiModel])
+  @@index([operationType])
+  @@map("usage_metrics")
+}
+
+// ==================== CREDITS & BILLING ====================
+
+model Credits {
+  id                     String    @id @default(uuid())
+  userId                 String    @unique @map("user_id")
+  balanceMxn             Decimal   @default(0) @map("balance_mxn") @db.Decimal(10, 2)
+  totalPurchasedMxn      Decimal   @default(0) @map("total_purchased_mxn") @db.Decimal(10, 2)
+  totalSpentMxn          Decimal   @default(0) @map("total_spent_mxn") @db.Decimal(10, 2)
+  totalRefundedMxn       Decimal   @default(0) @map("total_refunded_mxn") @db.Decimal(10, 2)
+  currency               String    @default("MXN")
+  lowBalanceThresholdMxn Decimal   @default(50) @map("low_balance_threshold_mxn") @db.Decimal(10, 2)
+  lowBalanceNotifiedAt   DateTime? @map("low_balance_notified_at")
+  createdAt              DateTime  @default(now()) @map("created_at")
+  updatedAt              DateTime  @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("credits")
+}
+
+model CreditTransaction {
+  id               String    @id @default(uuid())
+  userId           String    @map("user_id")
+  transactionType  String    @map("transaction_type")
+  amountMxn        Decimal   @map("amount_mxn") @db.Decimal(10, 2)
+  balanceBeforeMxn Decimal   @map("balance_before_mxn") @db.Decimal(10, 2)
+  balanceAfterMxn  Decimal   @map("balance_after_mxn") @db.Decimal(10, 2)
+  generationId     String?   @map("generation_id")
+  paymentId        String?   @map("payment_id")
+  paymentMethod    String?   @map("payment_method")
+  description      String?
+  notes            String?
+  metadata         Json      @default("{}")
+  status           String    @default("completed")
+  createdAt        DateTime  @default(now()) @map("created_at")
+  processedAt      DateTime? @map("processed_at")
+
+  user       User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  generation Generation? @relation(fields: [generationId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([transactionType])
+  @@index([createdAt(sort: Desc)])
+  @@index([generationId])
+  @@index([paymentId])
+  @@map("credit_transactions")
+}
+
+// ==================== SESSIONS ====================
+
+model Session {
+  id               String    @id @default(uuid())
+  userId           String    @map("user_id")
+  tokenHash        String    @unique @map("token_hash")
+  refreshTokenHash String?   @map("refresh_token_hash")
+  ipAddress        String?   @map("ip_address")
+  userAgent        String?   @map("user_agent")
+  deviceType       String?   @map("device_type")
+  os               String?
+  browser          String?
+  country          String?
+  city             String?
+  isActive         Boolean   @default(true) @map("is_active")
+  expiresAt        DateTime  @map("expires_at")
+  lastActivityAt   DateTime  @default(now()) @map("last_activity_at")
+  isSuspicious     Boolean   @default(false) @map("is_suspicious")
+  revokedAt        DateTime? @map("revoked_at")
+  revokeReason     String?   @map("revoke_reason")
+  createdAt        DateTime  @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([tokenHash])
+  @@index([expiresAt])
+  @@index([userId, isActive])
+  @@map("sessions")
+}
