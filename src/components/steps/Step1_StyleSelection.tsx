@@ -2,24 +2,33 @@ import { useState, useEffect } from 'react';
 import { ArrowRight, Palette, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useApplication } from '@/context/ApplicationContext';
-import { stylesStorage } from '@/utils/indexedDB';
+import { stylesService, type Style } from '@/services/api';
 import { LibraryCard, CreateNewCard } from '@/components/shared/LibraryCard';
 import { StyleCreator } from '@/components/library/StyleCreator';
-import type { SavedStyle } from '@/types';
 
 export function Step1_StyleSelection() {
     const { state, setSelectedStyle, nextStep, prevStep } = useApplication();
-    const [styles, setStyles] = useState<SavedStyle[]>([]);
+    const [styles, setStyles] = useState<Style[]>([]);
     const [isCreatorOpen, setIsCreatorOpen] = useState(false);
     const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
     const [isLoading, setIsLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
 
-    // Load styles from IndexedDB
+    // Load styles from API
     useEffect(() => {
         async function loadStyles() {
-            const loadedStyles = await stylesStorage.getAll();
-            setStyles(loadedStyles);
-            setIsLoading(false);
+            try {
+                const response = await stylesService.list({ limit: 100 });
+                setStyles(response.styles);
+            } catch (err) {
+                // Filter out empty errors (from auth redirects)
+                const message = err instanceof Error ? err.message : 'Failed to load styles';
+                if (message) {
+                    setError(message);
+                }
+            } finally {
+                setIsLoading(false);
+            }
         }
         loadStyles();
     }, []);
@@ -34,11 +43,14 @@ export function Step1_StyleSelection() {
 
     const handleDeleteStyle = async (id: string) => {
         if (deleteConfirmId === id) {
-            await stylesStorage.remove(id);
-            const updatedStyles = await stylesStorage.getAll();
-            setStyles(updatedStyles);
-            if (state.selectedStyleId === id) {
-                setSelectedStyle(null);
+            try {
+                await stylesService.delete(id);
+                setStyles(prev => prev.filter(s => s.id !== id));
+                if (state.selectedStyleId === id) {
+                    setSelectedStyle(null);
+                }
+            } catch (err) {
+                setError(err instanceof Error ? err.message : 'Failed to delete style');
             }
             setDeleteConfirmId(null);
         } else {
@@ -47,9 +59,8 @@ export function Step1_StyleSelection() {
         }
     };
 
-    const handleStyleCreated = async (newStyle: SavedStyle) => {
-        const updatedStyles = await stylesStorage.getAll();
-        setStyles(updatedStyles);
+    const handleStyleCreated = async (newStyle: Style) => {
+        setStyles(prev => [newStyle, ...prev]);
         setSelectedStyle(newStyle.id);
     };
 
@@ -80,6 +91,19 @@ export function Step1_StyleSelection() {
                 </p>
             </div>
 
+            {/* Error Message */}
+            {error && (
+                <div className="mb-4 p-3 rounded-lg bg-red-500/20 border border-red-500/50 text-red-200 text-sm">
+                    {error}
+                    <button
+                        onClick={() => setError(null)}
+                        className="float-right text-red-300 hover:text-white"
+                    >
+                        ✕
+                    </button>
+                </div>
+            )}
+
             {/* Styles Grid */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 mb-8">
                 {/* Create New Card */}
@@ -95,8 +119,8 @@ export function Step1_StyleSelection() {
                         key={style.id}
                         id={style.id}
                         name={style.name}
-                        imageBase64={style.referenceImage}
-                        createdAt={style.createdAt}
+                        imageUrl={style.referenceImageThumbUrl || style.referenceImageUrl}
+                        createdAt={new Date(style.createdAt).getTime()}
                         tags={style.keywords.slice(0, 3)}
                         isSelected={state.selectedStyleId === style.id}
                         onSelect={handleSelectStyle}

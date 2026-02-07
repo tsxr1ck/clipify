@@ -127,6 +127,16 @@ export function ApplicationProvider({ children }: { children: ReactNode }) {
                 dispatch({ type: 'SET_API_KEY_VALID', isValid: true });
             }
 
+            // Restore selected style and character from localStorage
+            const savedStyleId = localStorage.getItem('clipify_selectedStyleId');
+            const savedCharacterId = localStorage.getItem('clipify_selectedCharacterId');
+            if (savedStyleId) {
+                dispatch({ type: 'SET_SELECTED_STYLE', styleId: savedStyleId });
+            }
+            if (savedCharacterId) {
+                dispatch({ type: 'SET_SELECTED_CHARACTER', characterId: savedCharacterId });
+            }
+
             // Initialize theme
             const savedTheme = await themeStorage.get();
             const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
@@ -163,10 +173,22 @@ export function ApplicationProvider({ children }: { children: ReactNode }) {
 
     const setSelectedStyle = (styleId: string | null) => {
         dispatch({ type: 'SET_SELECTED_STYLE', styleId });
+        // Persist to localStorage
+        if (styleId) {
+            localStorage.setItem('clipify_selectedStyleId', styleId);
+        } else {
+            localStorage.removeItem('clipify_selectedStyleId');
+        }
     };
 
     const setSelectedCharacter = (characterId: string | null) => {
         dispatch({ type: 'SET_SELECTED_CHARACTER', characterId });
+        // Persist to localStorage
+        if (characterId) {
+            localStorage.setItem('clipify_selectedCharacterId', characterId);
+        } else {
+            localStorage.removeItem('clipify_selectedCharacterId');
+        }
     };
 
     const setLoading = (isLoading: boolean) => {

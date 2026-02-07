@@ -53,10 +53,14 @@ export const creditsController = {
      */
     async getTransactions(req: AuthRequest, res: Response): Promise<void> {
         try {
-            const { page, limit, type } = req.query as {
-                page: number; limit: number; type?: string
+            const { page: pageStr, limit: limitStr, type } = req.query as {
+                page?: string; limit?: string; type?: string
             };
             const userId = req.user!.userId;
+
+            // Parse query params
+            const page = parseInt(pageStr || '1', 10) || 1;
+            const limit = parseInt(limitStr || '20', 10) || 20;
             const skip = (page - 1) * limit;
 
             const where = {

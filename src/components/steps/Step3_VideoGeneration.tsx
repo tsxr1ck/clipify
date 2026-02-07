@@ -10,13 +10,16 @@ import {
     User,
     DollarSign,
     Clock,
+    ArrowRightLeft,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
 import { useApplication, useApiKey } from '@/context/ApplicationContext';
-import { charactersStorage, stylesStorage } from '@/utils/indexedDB';
+import { stylesService, charactersService } from '@/services/api';
+import type { Style } from '@/services/api/stylesService';
+import type { Character } from '@/services/api/charactersService';
 import { base64ToDataUrl } from '@/utils/imageProcessing';
 import {
     checkVeoAccess,
@@ -25,7 +28,9 @@ import {
 } from '@/services/api/geminiService';
 import { ErrorMessage } from '@/components/shared/ErrorMessage';
 import { VideoGeneratingModal } from '@/components/shared/VideoGeneratingModal';
-import type { SavedCharacter, SavedStyle, VideoDuration } from '@/types';
+import { StyleSelectorModal } from '@/components/shared/StyleSelectorModal';
+import { CharacterSelectorModal } from '@/components/shared/CharacterSelectorModal';
+import type { VideoDuration } from '@/types';
 
 const durationOptions: { value: VideoDuration; label: string }[] = [
     { value: 2, label: '2s' },
@@ -39,11 +44,16 @@ const VEO_COST_PER_SECOND_USD = 0.05;
 const USD_TO_MXN = 17.5;
 
 export function Step3_VideoGeneration() {
-    const { state, prevStep, setStep } = useApplication();
+    const { state, prevStep, setStep, setSelectedStyle: setGlobalStyleId, setSelectedCharacter: setGlobalCharacterId } = useApplication();
     const { key: apiKey } = useApiKey();
 
-    const [selectedStyle, setSelectedStyle] = useState<SavedStyle | null>(null);
-    const [selectedCharacter, setSelectedCharacter] = useState<SavedCharacter | null>(null);
+    // Style and character from API
+    const [selectedStyle, setSelectedStyle] = useState<Style | null>(null);
+    const [selectedCharacter, setSelectedCharacter] = useState<Character | null>(null);
+
+    // Modal state for swapping style/character
+    const [showStyleSelector, setShowStyleSelector] = useState(false);
+    const [showCharacterSelector, setShowCharacterSelector] = useState(false);
     const [veoAvailable, setVeoAvailable] = useState<boolean | null>(null);
     const [isCheckingVeo, setIsCheckingVeo] = useState(true);
     const [isLoading, setIsLoading] = useState(true);
@@ -84,18 +94,23 @@ export function Step3_VideoGeneration() {
     const estimatedCostUSD = duration * VEO_COST_PER_SECOND_USD;
     const estimatedCostMXN = estimatedCostUSD * USD_TO_MXN;
 
-    // Load selected style and character
+    // Load selected style and character from API
     useEffect(() => {
         async function loadData() {
-            if (state.selectedStyleId) {
-                const style = await stylesStorage.getById(state.selectedStyleId);
-                setSelectedStyle(style);
+            try {
+                if (state.selectedStyleId) {
+                    const style = await stylesService.get(state.selectedStyleId);
+                    setSelectedStyle(style);
+                }
+                if (state.selectedCharacterId) {
+                    const character = await charactersService.get(state.selectedCharacterId);
+                    setSelectedCharacter(character);
+                }
+            } catch (err) {
+                console.error('Failed to load style/character:', err);
+            } finally {
+                setIsLoading(false);
             }
-            if (state.selectedCharacterId) {
-                const character = await charactersStorage.getById(state.selectedCharacterId);
-                setSelectedCharacter(character);
-            }
-            setIsLoading(false);
         }
         loadData();
     }, [state.selectedStyleId, state.selectedCharacterId]);
@@ -134,9 +149,21 @@ export function Step3_VideoGeneration() {
                 selectedCharacter.prompt,
                 duration
             );
+            // TODO: Video generation needs base64 image but we now have URL
+            // For now, we need to fetch the image and convert to base64
+            const imageResponse = await fetch(selectedCharacter.imageUrl);
+            const imageBlob = await imageResponse.blob();
+            const imageBase64 = await new Promise<string>((resolve) => {
+                const reader = new FileReader();
+                reader.onloadend = () => {
+                    const base64 = (reader.result as string).split(',')[1];
+                    resolve(base64);
+                };
+                reader.readAsDataURL(imageBlob);
+            });
 
             const result = await generateVideo(
-                selectedCharacter.imageBase64,
+                imageBase64,
                 prompt,
                 duration,
                 apiKey,
@@ -169,9 +196,11 @@ export function Step3_VideoGeneration() {
     const handleDownloadCharacter = () => {
         if (!selectedCharacter) return;
 
+        // Create a link to download the image from URL
         const link = document.createElement('a');
-        link.href = base64ToDataUrl(selectedCharacter.imageBase64, 'image/png');
+        link.href = selectedCharacter.imageUrl;
         link.download = `${selectedCharacter.name.replace(/\s+/g, '-')}.png`;
+        link.target = '_blank';
         link.click();
     };
 
@@ -185,6 +214,18 @@ export function Step3_VideoGeneration() {
         setDuration(4);
         setGeneratedVideo(null);
         setError(null);
+    };
+
+    // Handle swapping style
+    const handleStyleSwap = (newStyle: Style) => {
+        setSelectedStyle(newStyle);
+        setGlobalStyleId(newStyle.id);
+    };
+
+    // Handle swapping character
+    const handleCharacterSwap = (newCharacter: Character) => {
+        setSelectedCharacter(newCharacter);
+        setGlobalCharacterId(newCharacter.id);
     };
 
     if (isLoading) {
@@ -259,14 +300,21 @@ export function Step3_VideoGeneration() {
                 <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
                     {/* Column 1: Style & Character */}
                     <div className="lg:col-span-3 space-y-4">
-                        <div className="glass-card p-4">
-                            <h3 className="text-sm font-semibold text-foreground mb-3 flex items-center gap-2">
-                                <Palette className="w-4 h-4" />
-                                Style
+                        {/* Style Card - Clickable */}
+                        <button
+                            onClick={() => setShowStyleSelector(true)}
+                            className="w-full glass-card p-4 text-left hover:ring-2 hover:ring-primary/50 transition-all group"
+                        >
+                            <h3 className="text-sm font-semibold text-foreground mb-3 flex items-center justify-between">
+                                <span className="flex items-center gap-2">
+                                    <Palette className="w-4 h-4" />
+                                    Style
+                                </span>
+                                <ArrowRightLeft className="w-4 h-4 text-muted-foreground group-hover:text-primary transition-colors" />
                             </h3>
                             <div className="space-y-3">
                                 <img
-                                    src={base64ToDataUrl(selectedStyle.referenceImage, 'image/png')}
+                                    src={selectedStyle.referenceImageUrl}
                                     alt={selectedStyle.name}
                                     className="w-full aspect-square rounded-xl object-cover"
                                 />
@@ -284,16 +332,26 @@ export function Step3_VideoGeneration() {
                                     </div>
                                 </div>
                             </div>
-                        </div>
+                            <p className="text-xs text-muted-foreground mt-2 text-center opacity-0 group-hover:opacity-100 transition-opacity">
+                                Click to change style
+                            </p>
+                        </button>
 
-                        <div className="glass-card p-4">
-                            <h3 className="text-sm font-semibold text-foreground mb-3 flex items-center gap-2">
-                                <User className="w-4 h-4" />
-                                Character
+                        {/* Character Card - Clickable */}
+                        <button
+                            onClick={() => setShowCharacterSelector(true)}
+                            className="w-full glass-card p-4 text-left hover:ring-2 hover:ring-primary/50 transition-all group"
+                        >
+                            <h3 className="text-sm font-semibold text-foreground mb-3 flex items-center justify-between">
+                                <span className="flex items-center gap-2">
+                                    <User className="w-4 h-4" />
+                                    Character
+                                </span>
+                                <ArrowRightLeft className="w-4 h-4 text-muted-foreground group-hover:text-primary transition-colors" />
                             </h3>
                             <div className="space-y-3">
                                 <img
-                                    src={base64ToDataUrl(selectedCharacter.imageBase64, 'image/png')}
+                                    src={selectedCharacter.imageUrl}
                                     alt={selectedCharacter.name}
                                     className="w-full aspect-square rounded-xl object-cover"
                                 />
@@ -304,7 +362,10 @@ export function Step3_VideoGeneration() {
                                     </p>
                                 </div>
                             </div>
-                        </div>
+                            <p className="text-xs text-muted-foreground mt-2 text-center opacity-0 group-hover:opacity-100 transition-opacity">
+                                Click to change character
+                            </p>
+                        </button>
 
                         {/* Back Button */}
                         <Button variant="ghost" onClick={prevStep} className="w-full btn-glass">
@@ -580,6 +641,22 @@ export function Step3_VideoGeneration() {
                 isOpen={isGenerating}
                 progressMessage={progressMessage}
                 elapsedTime={elapsedTime}
+            />
+
+            {/* Style Selector Modal */}
+            <StyleSelectorModal
+                open={showStyleSelector}
+                onClose={() => setShowStyleSelector(false)}
+                onSelect={handleStyleSwap}
+                currentStyleId={selectedStyle?.id}
+            />
+
+            {/* Character Selector Modal */}
+            <CharacterSelectorModal
+                open={showCharacterSelector}
+                onClose={() => setShowCharacterSelector(false)}
+                onSelect={handleCharacterSwap}
+                currentCharacterId={selectedCharacter?.id}
             />
         </div>
     );

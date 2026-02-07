@@ -90,6 +90,72 @@ export async function validateApiKey(apiKey: string): Promise<{ valid: boolean; 
 }
 
 /**
+ * Analyze an uploaded character image and extract a detailed description
+ * This is used before applying style transfer to get the character's visual prompt
+ */
+export async function analyzeCharacterImage(
+    apiKey: string,
+    imageBase64: string,
+    mimeType: string
+): Promise<{ description: string }> {
+    const prompt = `Analyze this character image and provide a detailed visual description for image generation.
+
+Focus on describing:
+1. **Subject/Character**: What or who is depicted (person, animal, creature, object)
+2. **Appearance**: Physical features, body type, facial features, expression
+3. **Clothing/Accessories**: What they're wearing or carrying
+4. **Pose/Action**: How they're positioned or what they're doing
+5. **Notable Details**: Any distinctive features, props, or elements
+
+Write a concise but comprehensive prompt suitable for regenerating this character in a different art style.
+Format as a single paragraph, 2-4 sentences.
+Do NOT mention the art style, colors, or lighting - focus only on the SUBJECT itself.
+
+Example format: "A friendly capybara wearing a construction helmet and reflective vest, standing upright with a toolbox in one paw. The character has a warm smile and attentive eyes, positioned in a relaxed but professional stance."`;
+
+    const response = await fetch(
+        `${API_ENDPOINTS.gemini}?key=${apiKey}`,
+        {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                contents: [
+                    {
+                        parts: [
+                            { text: prompt },
+                            {
+                                inline_data: {
+                                    mime_type: mimeType,
+                                    data: imageBase64,
+                                },
+                            },
+                        ],
+                    },
+                ],
+                generationConfig: {
+                    temperature: 0.5,
+                    maxOutputTokens: 500,
+                },
+            }),
+        }
+    );
+
+    if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error?.message || `Character analysis failed: ${response.status}`);
+    }
+
+    const data: GeminiResponse = await response.json();
+    const description = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+
+    if (!description) {
+        throw new Error('No character description returned from API');
+    }
+
+    return { description: description.trim() };
+}
+
+/**
  * Extract visual style from an image using Gemini Vision
  */
 export async function extractStyleFromImage(
@@ -234,6 +300,81 @@ High quality, detailed, professional composition. Aspect ratio: ${aspectRatio}.`
 
     if (!imagePart?.inlineData?.data) {
         throw new Error('No image returned from API');
+    }
+
+    return {
+        base64: imagePart.inlineData.data,
+        mimeType: imagePart.inlineData.mimeType || 'image/png',
+    };
+}
+
+/**
+ * Generate a character image from a reference image, applying the selected style
+ * This does image-to-image style transfer
+ */
+export async function generateCharacterFromImage(
+    apiKey: string,
+    referenceImageBase64: string,
+    referenceImageMimeType: string,
+    styleKeywords: string[],
+    styleDetails: ParsedStyle,
+    characterDescription?: string
+): Promise<{ base64: string; mimeType: string }> {
+    // Construct style transfer prompt
+    const stylePrompt = `Recreate this character/subject in a new artistic style.
+
+${characterDescription ? `Character description: ${characterDescription}\n` : ''}
+Apply the following visual style:
+- Style: ${styleKeywords.join(', ')}
+- Color palette: ${styleDetails.colorPalette}
+- Lighting: ${styleDetails.lighting}
+- Art style: ${styleDetails.artisticStyle}
+- Texture: ${styleDetails.texture}
+
+Keep the character's identity, pose, and composition similar to the reference image, but transform it into this new visual style. High quality, detailed, professional result.`;
+
+    const response = await fetch(
+        `${API_ENDPOINTS.imagen}?key=${apiKey}`,
+        {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                contents: [
+                    {
+                        parts: [
+                            {
+                                inlineData: {
+                                    mimeType: referenceImageMimeType,
+                                    data: referenceImageBase64,
+                                },
+                            },
+                            { text: stylePrompt },
+                        ],
+                    },
+                ],
+            }),
+        }
+    );
+
+    if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        const errorMessage = errorData.error?.message || '';
+
+        if (response.status === 400 && errorMessage.includes('safety')) {
+            throw new Error('The image was flagged by content safety filters. Please try a different image.');
+        }
+
+        throw new Error(errorData.error?.message || `Style transfer failed: ${response.status}`);
+    }
+
+    const data = await response.json();
+    const parts = data.candidates?.[0]?.content?.parts || [];
+
+    // Find the image part in the response
+    const imagePart = parts.find((part: { inlineData?: { data: string; mimeType: string } }) => part.inlineData);
+
+    if (!imagePart?.inlineData?.data) {
+        throw new Error('No styled image returned from API');
     }
 
     return {

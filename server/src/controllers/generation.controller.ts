@@ -65,11 +65,16 @@ export const generationController = {
      */
     async list(req: AuthRequest, res: Response): Promise<void> {
         try {
-            const { page, limit, type, status, characterId, favorites } = req.query as {
-                page: number; limit: number; type?: string; status?: string;
-                characterId?: string; favorites?: boolean;
+            const { page: pageStr, limit: limitStr, type, status, characterId, favorites: favoritesStr } = req.query as {
+                page?: string; limit?: string; type?: string; status?: string;
+                characterId?: string; favorites?: string;
             };
             const userId = req.user!.userId;
+
+            // Parse query params
+            const page = parseInt(pageStr || '1', 10) || 1;
+            const limit = parseInt(limitStr || '20', 10) || 20;
+            const favorites = favoritesStr === 'true';
             const skip = (page - 1) * limit;
 
             const where = {

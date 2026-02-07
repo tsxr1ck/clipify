@@ -2,30 +2,34 @@ import { useState, useEffect } from 'react';
 import { ArrowRight, User, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useApplication } from '@/context/ApplicationContext';
-import { charactersStorage, stylesStorage } from '@/utils/indexedDB';
+import { charactersService, stylesService, type Character, type Style } from '@/services/api';
 import { LibraryCard, CreateNewCard } from '@/components/shared/LibraryCard';
 import { CharacterCreator } from '@/components/library/CharacterCreator';
-import { base64ToDataUrl } from '@/utils/imageProcessing';
-import type { SavedCharacter, SavedStyle } from '@/types';
 
 export function Step2_CharacterSelection() {
     const { state, setSelectedCharacter, nextStep, prevStep } = useApplication();
-    const [characters, setCharacters] = useState<SavedCharacter[]>([]);
-    const [selectedStyle, setSelectedStyle] = useState<SavedStyle | null>(null);
+    const [characters, setCharacters] = useState<Character[]>([]);
+    const [selectedStyle, setSelectedStyle] = useState<Style | null>(null);
     const [isCreatorOpen, setIsCreatorOpen] = useState(false);
     const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
     const [isLoading, setIsLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
 
-    // Load selected style and characters
+    // Load selected style and characters from API
     useEffect(() => {
         async function loadData() {
-            if (state.selectedStyleId) {
-                const style = await stylesStorage.getById(state.selectedStyleId);
-                setSelectedStyle(style);
+            try {
+                if (state.selectedStyleId) {
+                    const style = await stylesService.get(state.selectedStyleId);
+                    setSelectedStyle(style);
+                }
+                const response = await charactersService.list({ limit: 100 });
+                setCharacters(response.characters);
+            } catch (err) {
+                setError(err instanceof Error ? err.message : 'Failed to load data');
+            } finally {
+                setIsLoading(false);
             }
-            const loadedCharacters = await charactersStorage.getAll();
-            setCharacters(loadedCharacters);
-            setIsLoading(false);
         }
         loadData();
     }, [state.selectedStyleId]);
@@ -40,11 +44,14 @@ export function Step2_CharacterSelection() {
 
     const handleDeleteCharacter = async (id: string) => {
         if (deleteConfirmId === id) {
-            await charactersStorage.remove(id);
-            const updatedCharacters = await charactersStorage.getAll();
-            setCharacters(updatedCharacters);
-            if (state.selectedCharacterId === id) {
-                setSelectedCharacter(null);
+            try {
+                await charactersService.delete(id);
+                setCharacters(prev => prev.filter(c => c.id !== id));
+                if (state.selectedCharacterId === id) {
+                    setSelectedCharacter(null);
+                }
+            } catch (err) {
+                setError(err instanceof Error ? err.message : 'Failed to delete character');
             }
             setDeleteConfirmId(null);
         } else {
@@ -53,9 +60,8 @@ export function Step2_CharacterSelection() {
         }
     };
 
-    const handleCharacterCreated = async (newCharacter: SavedCharacter) => {
-        const updatedCharacters = await charactersStorage.getAll();
-        setCharacters(updatedCharacters);
+    const handleCharacterCreated = async (newCharacter: Character) => {
+        setCharacters(prev => [newCharacter, ...prev]);
         setSelectedCharacter(newCharacter.id);
     };
 
@@ -97,10 +103,23 @@ export function Step2_CharacterSelection() {
                 </p>
             </div>
 
+            {/* Error Message */}
+            {error && (
+                <div className="mb-4 p-3 rounded-lg bg-red-500/20 border border-red-500/50 text-red-200 text-sm">
+                    {error}
+                    <button
+                        onClick={() => setError(null)}
+                        className="float-right text-red-300 hover:text-white"
+                    >
+                        ✕
+                    </button>
+                </div>
+            )}
+
             {/* Selected Style Banner */}
             <div className="glass-card p-4 mb-6 flex items-center gap-4">
                 <img
-                    src={base64ToDataUrl(selectedStyle.referenceImage, 'image/png')}
+                    src={selectedStyle.referenceImageThumbUrl || selectedStyle.referenceImageUrl}
                     alt={selectedStyle.name}
                     className="w-16 h-16 rounded-xl object-cover"
                 />
@@ -135,9 +154,9 @@ export function Step2_CharacterSelection() {
                         key={character.id}
                         id={character.id}
                         name={character.name}
-                        imageBase64={character.imageBase64}
-                        createdAt={character.createdAt}
-                        subtitle={character.styleName}
+                        imageUrl={character.thumbnailUrl || character.imageUrl}
+                        createdAt={new Date(character.createdAt).getTime()}
+                        subtitle={character.style?.name}
                         isSelected={state.selectedCharacterId === character.id}
                         onSelect={handleSelectCharacter}
                         onDelete={handleDeleteCharacter}

@@ -5,7 +5,8 @@ import { base64ToDataUrl } from '@/utils/imageProcessing';
 interface LibraryCardProps {
     id: string;
     name: string;
-    imageBase64: string;
+    imageBase64?: string;  // Legacy: base64 image data
+    imageUrl?: string;     // New: URL-based image from API
     imageMimeType?: string;
     createdAt: number;
     tags?: string[];
@@ -21,6 +22,7 @@ export function LibraryCard({
     id,
     name,
     imageBase64,
+    imageUrl,
     imageMimeType = 'image/png',
     createdAt,
     tags,
@@ -37,7 +39,8 @@ export function LibraryCard({
         year: 'numeric',
     });
 
-    const imageUrl = base64ToDataUrl(imageBase64, imageMimeType);
+    // Support both URL-based images (from server) and base64 (legacy/local)
+    const imageSrc = imageUrl || (imageBase64 ? base64ToDataUrl(imageBase64, imageMimeType) : '');
 
     return (
         <div
@@ -60,7 +63,7 @@ export function LibraryCard({
                 {/* Image */}
                 <div className="relative aspect-square overflow-hidden">
                     <img
-                        src={imageUrl}
+                        src={imageSrc}
                         alt={name}
                         className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
                     />

@@ -43,8 +43,12 @@ export const styleController = {
      */
     async list(req: AuthRequest, res: Response): Promise<void> {
         try {
-            const { page, limit, search } = req.query as { page: number; limit: number; search?: string };
+            const { page: pageStr, limit: limitStr, search } = req.query as { page?: string; limit?: string; search?: string };
             const userId = req.user!.userId;
+
+            // Parse query params (they come as strings)
+            const page = parseInt(pageStr || '1', 10) || 1;
+            const limit = parseInt(limitStr || '20', 10) || 20;
             const skip = (page - 1) * limit;
 
             const where = {

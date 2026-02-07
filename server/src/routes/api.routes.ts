@@ -97,4 +97,11 @@ router.get('/admin/stats', authenticate, authorize('admin'), async (_req, res) =
     res.json({ message: 'Admin stats endpoint' });
 });
 
+// ==================== UPLOADS ====================
+import { uploadController } from '../controllers/upload.controller.js';
+
+router.post('/upload/style-image', authenticate, uploadController.uploadStyleImage);
+router.post('/upload/character-image', authenticate, uploadController.uploadCharacterImage);
+router.post('/upload/generation', authenticate, uploadController.uploadGeneration);
+
 export default router;

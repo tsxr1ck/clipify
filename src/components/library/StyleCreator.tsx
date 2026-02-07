@@ -10,16 +10,16 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { useApiKey } from '@/context/ApplicationContext';
-import { stylesStorage, generateId } from '@/utils/indexedDB';
 import { fileToBase64 } from '@/utils/imageProcessing';
 import { extractStyleFromImage } from '@/services/api/geminiService';
+import { stylesService, uploadService, type Style } from '@/services/api';
 import { ErrorMessage } from '@/components/shared/ErrorMessage';
-import type { SavedStyle, ParsedStyle } from '@/types';
+import type { ParsedStyle } from '@/types';
 
 interface StyleCreatorProps {
     open: boolean;
     onClose: () => void;
-    onStyleCreated: (style: SavedStyle) => void;
+    onStyleCreated: (style: Style) => void;
 }
 
 export function StyleCreator({ open, onClose, onStyleCreated }: StyleCreatorProps) {
@@ -32,6 +32,7 @@ export function StyleCreator({ open, onClose, onStyleCreated }: StyleCreatorProp
         fileName: string;
     } | null>(null);
     const [isExtracting, setIsExtracting] = useState(false);
+    const [isSaving, setIsSaving] = useState(false);
     const [extractedStyle, setExtractedStyle] = useState<{
         keywords: string[];
         parsed: ParsedStyle;
@@ -58,7 +59,7 @@ export function StyleCreator({ open, onClose, onStyleCreated }: StyleCreatorProp
             });
             setExtractedStyle(null);
             setError(null);
-        } catch (err) {
+        } catch {
             setError('Failed to read image file');
         }
     }, []);
@@ -102,22 +103,35 @@ export function StyleCreator({ open, onClose, onStyleCreated }: StyleCreatorProp
     const handleSave = async () => {
         if (!styleName.trim() || !uploadedImage || !extractedStyle) return;
 
-        const newStyle: SavedStyle = {
-            id: generateId(),
-            name: styleName.trim(),
-            createdAt: Date.now(),
-            styleAnalysis: extractedStyle.parsed.overview,
-            referenceImage: uploadedImage.base64,
-            keywords: extractedStyle.keywords,
-            parsedStyle: extractedStyle.parsed,
-        };
+        setIsSaving(true);
+        setError(null);
 
         try {
-            await stylesStorage.add(newStyle);
+            // First, upload the image to the server
+            const uploadResult = await uploadService.uploadStyleImage(
+                uploadedImage.base64,
+                uploadedImage.mimeType,
+                uploadedImage.fileName
+            );
+
+            // Then create the style via API
+            const newStyle = await stylesService.create({
+                name: styleName.trim(),
+                description: extractedStyle.parsed.overview,
+                styleAnalysis: extractedStyle.parsed.overview,
+                parsedStyle: extractedStyle.parsed,
+                keywords: extractedStyle.keywords,
+                referenceImageUrl: uploadResult.url,
+                referenceImageKey: uploadResult.key,
+                referenceImageThumbUrl: uploadResult.thumbnailUrl,
+            });
+
             onStyleCreated(newStyle);
             handleClose();
         } catch (err) {
             setError(err instanceof Error ? err.message : 'Failed to save style');
+        } finally {
+            setIsSaving(false);
         }
     };
 
@@ -242,10 +256,17 @@ export function StyleCreator({ open, onClose, onStyleCreated }: StyleCreatorProp
                         ) : (
                             <Button
                                 onClick={handleSave}
-                                disabled={!styleName.trim()}
+                                disabled={!styleName.trim() || isSaving}
                                 className="flex-1 btn-gradient py-5"
                             >
-                                Save to Library
+                                {isSaving ? (
+                                    <>
+                                        <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                                        Saving...
+                                    </>
+                                ) : (
+                                    'Save to Library'
+                                )}
                             </Button>
                         )}
                         <Button variant="ghost" onClick={handleClose} className="btn-glass">

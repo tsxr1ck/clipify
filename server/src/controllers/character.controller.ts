@@ -40,10 +40,15 @@ export const characterController = {
      */
     async list(req: AuthRequest, res: Response): Promise<void> {
         try {
-            const { page, limit, styleId, favorites } = req.query as {
-                page: number; limit: number; styleId?: string; favorites?: boolean
+            const { page: pageStr, limit: limitStr, styleId, favorites: favoritesStr } = req.query as {
+                page?: string; limit?: string; styleId?: string; favorites?: string
             };
             const userId = req.user!.userId;
+
+            // Parse query params
+            const page = parseInt(pageStr || '1', 10) || 1;
+            const limit = parseInt(limitStr || '20', 10) || 20;
+            const favorites = favoritesStr === 'true';
             const skip = (page - 1) * limit;
 
             const where = {
