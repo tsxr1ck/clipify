@@ -1,6 +1,36 @@
-import type { Response } from 'express';
+import { type Response } from 'express';
+import { z } from 'zod';
 import type { AuthRequest } from '../middleware/auth.js';
 import { storageService } from '../services/storage.service.js';
+
+// Validation schemas
+const uploadImageSchema = z.object({
+    imageBase64: z.string().min(1),
+    mimeType: z.string().min(1),
+    fileName: z.string().optional(),
+});
+
+const uploadGenerationSchema = z.object({
+    fileBase64: z.string().min(1),
+    mimeType: z.string().min(1),
+    fileName: z.string().optional(),
+    isVideo: z.boolean().default(false),
+});
+
+/**
+ * Sanitize filename for Supabase Storage
+ * Removes spaces, special characters, and ensures valid extension
+ */
+function sanitizeFilename(filename: string): string {
+    // Remove extension first (we'll add it based on mimeType)
+    const nameWithoutExt = filename.replace(/\.[^/.]+$/, '');
+    // Replace spaces and special chars with underscores, keep alphanumeric and dashes
+    return nameWithoutExt
+        .replace(/[^a-zA-Z0-9-]/g, '_')
+        .replace(/_+/g, '_')
+        .replace(/^_|_$/g, '')
+        .slice(0, 50); // Limit length
+}
 
 export const uploadController = {
     /**
@@ -10,19 +40,15 @@ export const uploadController = {
     async uploadStyleImage(req: AuthRequest, res: Response): Promise<void> {
         try {
             const userId = req.user!.userId;
-            const { imageBase64, mimeType, fileName } = req.body;
-
-            if (!imageBase64 || !mimeType) {
-                res.status(400).json({ error: 'imageBase64 and mimeType are required' });
-                return;
-            }
+            const { imageBase64, mimeType, fileName } = uploadImageSchema.parse(req.body);
 
             // Convert base64 to buffer
             const buffer = Buffer.from(imageBase64, 'base64');
 
-            // Generate unique path
+            // Generate unique path with sanitized filename
             const ext = mimeType.split('/')[1] || 'png';
-            const path = `${userId}/${Date.now()}-${fileName || 'style'}.${ext}`;
+            const safeName = sanitizeFilename(fileName || 'style');
+            const path = `${userId}/${Date.now()}-${safeName}.${ext}`;
 
             // Upload with thumbnail
             const result = await storageService.uploadWithThumbnail('STYLES', path, buffer, mimeType);
@@ -45,19 +71,15 @@ export const uploadController = {
     async uploadCharacterImage(req: AuthRequest, res: Response): Promise<void> {
         try {
             const userId = req.user!.userId;
-            const { imageBase64, mimeType, fileName } = req.body;
-
-            if (!imageBase64 || !mimeType) {
-                res.status(400).json({ error: 'imageBase64 and mimeType are required' });
-                return;
-            }
+            const { imageBase64, mimeType, fileName } = uploadImageSchema.parse(req.body);
 
             // Convert base64 to buffer
             const buffer = Buffer.from(imageBase64, 'base64');
 
-            // Generate unique path
+            // Generate unique path with sanitized filename
             const ext = mimeType.split('/')[1] || 'png';
-            const path = `${userId}/${Date.now()}-${fileName || 'character'}.${ext}`;
+            const safeName = sanitizeFilename(fileName || 'character');
+            const path = `${userId}/${Date.now()}-${safeName}.${ext}`;
 
             // Upload with thumbnail
             const result = await storageService.uploadWithThumbnail('CHARACTERS', path, buffer, mimeType);
@@ -80,19 +102,15 @@ export const uploadController = {
     async uploadGeneration(req: AuthRequest, res: Response): Promise<void> {
         try {
             const userId = req.user!.userId;
-            const { fileBase64, mimeType, fileName, isVideo } = req.body;
-
-            if (!fileBase64 || !mimeType) {
-                res.status(400).json({ error: 'fileBase64 and mimeType are required' });
-                return;
-            }
+            const { fileBase64, mimeType, fileName, isVideo } = uploadGenerationSchema.parse(req.body);
 
             // Convert base64 to buffer
             const buffer = Buffer.from(fileBase64, 'base64');
 
-            // Generate unique path
+            // Generate unique path with sanitized filename
             const ext = mimeType.split('/')[1] || (isVideo ? 'mp4' : 'png');
-            const path = `${userId}/${Date.now()}-${fileName || 'generation'}.${ext}`;
+            const safeName = sanitizeFilename(fileName || 'generation');
+            const path = `${userId}/${Date.now()}-${safeName}.${ext}`;
 
             // Upload (with or without thumbnail)
             let result;

@@ -64,3 +64,10 @@ export function useStyleCreditsCheck() {
 export function useCharacterCreditsCheck() {
     return useCreditsCheck('CHARACTER_CREATION');
 }
+
+/**
+ * Hook specifically for AI scene builder cost estimation
+ */
+export function useSceneBuilderCreditsCheck() {
+    return useCreditsCheck('SCENE_BUILDER');
+}

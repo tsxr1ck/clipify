@@ -52,7 +52,7 @@ export const apiKeyController = {
      */
     async create(req: AuthRequest, res: Response): Promise<void> {
         try {
-            const { keyName, apiKey, isPrimary } = req.body;
+            const { keyName, apiKey, isPrimary } = createApiKeySchema.parse(req.body);
             const userId = req.user!.userId;
 
             // Encrypt the API key
@@ -98,8 +98,8 @@ export const apiKeyController = {
      */
     async update(req: AuthRequest, res: Response): Promise<void> {
         try {
-            const { id } = req.params;
-            const { keyName, isActive, isPrimary } = req.body;
+            const { id } = req.params as { id: string };
+            const { keyName, isActive, isPrimary } = updateApiKeySchema.parse(req.body);
             const userId = req.user!.userId;
 
             // Check ownership
@@ -149,7 +149,7 @@ export const apiKeyController = {
      */
     async delete(req: AuthRequest, res: Response): Promise<void> {
         try {
-            const { id } = req.params;
+            const { id } = req.params as { id: string };
             const userId = req.user!.userId;
 
             // Check ownership
@@ -176,7 +176,7 @@ export const apiKeyController = {
      */
     async validate(req: AuthRequest, res: Response): Promise<void> {
         try {
-            const { id } = req.params;
+            const { id } = req.params as { id: string };
             const userId = req.user!.userId;
 
             // Get API key

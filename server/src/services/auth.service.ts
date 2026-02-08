@@ -106,13 +106,13 @@ export class AuthService {
         };
 
         const token = jwt.sign(payload, env.JWT_SECRET, {
-            expiresIn: env.JWT_ACCESS_EXPIRY,
+            expiresIn: env.JWT_ACCESS_EXPIRY as any,
         });
 
         const refreshToken = jwt.sign(
             { userId: user.id, type: 'refresh' },
             env.JWT_SECRET,
-            { expiresIn: env.JWT_REFRESH_EXPIRY }
+            { expiresIn: env.JWT_REFRESH_EXPIRY as any }
         );
 
         // Create session
@@ -272,7 +272,7 @@ export class AuthService {
             };
 
             const newToken = jwt.sign(payload, env.JWT_SECRET, {
-                expiresIn: env.JWT_ACCESS_EXPIRY,
+                expiresIn: env.JWT_ACCESS_EXPIRY as any,
             });
 
             // Update session

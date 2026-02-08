@@ -8,10 +8,9 @@ interface ProgressStepperProps {
 }
 
 const steps = [
-    { id: 0 as Step, label: 'API Setup', shortLabel: 'API' },
-    { id: 1 as Step, label: 'Style Library', shortLabel: 'Style' },
-    { id: 2 as Step, label: 'Character Library', shortLabel: 'Character' },
-    { id: 3 as Step, label: 'Video Generation', shortLabel: 'Video' },
+    { id: 0 as Step, label: 'Style Library', shortLabel: 'Style' },
+    { id: 1 as Step, label: 'Character Library', shortLabel: 'Character' },
+    { id: 2 as Step, label: 'Video Generation', shortLabel: 'Video' },
 ];
 
 export function ProgressStepper({ currentStep, onStepClick }: ProgressStepperProps) {

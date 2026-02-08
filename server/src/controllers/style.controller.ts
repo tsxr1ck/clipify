@@ -43,7 +43,12 @@ export const styleController = {
      */
     async list(req: AuthRequest, res: Response): Promise<void> {
         try {
-            const { page: pageStr, limit: limitStr, search } = req.query as { page?: string; limit?: string; search?: string };
+            const { page: pageRaw, limit: limitRaw, search: searchRaw } = req.query;
+
+            const pageStr = typeof pageRaw === 'string' ? pageRaw : undefined;
+            const limitStr = typeof limitRaw === 'string' ? limitRaw : undefined;
+            const search = typeof searchRaw === 'string' ? searchRaw : undefined;
+
             const userId = req.user!.userId;
 
             // Parse query params (they come as strings)
@@ -71,6 +76,8 @@ export const styleController = {
                         id: true,
                         name: true,
                         description: true,
+                        styleAnalysis: true,
+                        parsedStyle: true,
                         keywords: true,
                         referenceImageUrl: true,
                         referenceImageThumbUrl: true,
@@ -103,7 +110,7 @@ export const styleController = {
      */
     async get(req: AuthRequest, res: Response): Promise<void> {
         try {
-            const { id } = req.params;
+            const { id } = req.params as { id: string };
             const userId = req.user!.userId;
 
             const style = await prisma.style.findFirst({
@@ -150,7 +157,7 @@ export const styleController = {
     async create(req: AuthRequest, res: Response): Promise<void> {
         try {
             const userId = req.user!.userId;
-            const data = req.body;
+            const data = createStyleSchema.parse(req.body);
 
             const style = await prisma.style.create({
                 data: {
@@ -171,9 +178,9 @@ export const styleController = {
      */
     async update(req: AuthRequest, res: Response): Promise<void> {
         try {
-            const { id } = req.params;
+            const { id } = req.params as { id: string };
             const userId = req.user!.userId;
-            const data = req.body;
+            const data = updateStyleSchema.parse(req.body);
 
             // Check ownership
             const existing = await prisma.style.findFirst({
@@ -202,7 +209,7 @@ export const styleController = {
      */
     async delete(req: AuthRequest, res: Response): Promise<void> {
         try {
-            const { id } = req.params;
+            const { id } = req.params as { id: string };
             const userId = req.user!.userId;
 
             // Check ownership

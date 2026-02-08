@@ -35,6 +35,8 @@ model User {
   creditTransactions CreditTransaction[]
   usageMetrics       UsageMetric[]
   sessions           Session[]
+  scenes             Scene[]
+  stories            Story[]
 
   @@index([email])
   @@index([createdAt])
@@ -325,4 +327,68 @@ model Session {
   @@index([expiresAt])
   @@index([userId, isActive])
   @@map("sessions")
+}
+
+// ==================== SCENES & STORIES ====================
+
+model Scene {
+  id                 String    @id @default(uuid())
+  userId             String    @map("user_id")
+  title              String
+  description        String?
+  originalPrompt     String    @map("original_prompt")
+  escena             String
+  fondo              String    @default("")
+  accion             String
+  dialogo            String
+  voiceStyle         String?   @map("voice_style")
+  movimiento         String?
+  suggestedDuration  Int       @map("suggested_duration")
+  condicionesFisicas String?   @map("condiciones_fisicas")
+  defectosTecnicos   String?   @map("defectos_tecnicos")
+  contextoInvisible  String?   @map("contexto_invisible")
+  tokensUsed         Int       @default(0) @map("tokens_used")
+  costMxn            Decimal   @default(0) @map("cost_mxn") @db.Decimal(10, 2)
+  timesUsed          Int       @default(0) @map("times_used")
+  lastUsedAt         DateTime? @map("last_used_at")
+  isFavorite         Boolean   @default(false) @map("is_favorite")
+  tags               String[]  @default([])
+  folder             String?
+  createdAt          DateTime  @default(now()) @map("created_at")
+  updatedAt          DateTime  @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([originalPrompt])
+  @@index([createdAt(sort: Desc)])
+  @@index([userId, isFavorite])
+  @@map("scenes")
+}
+
+model Story {
+  id               String    @id @default(uuid())
+  userId           String    @map("user_id")
+  storyTitle       String    @map("story_title")
+  storyDescription String?   @map("story_description")
+  originalPrompt   String    @map("original_prompt")
+  segmentCount     Int       @map("segment_count")
+  segments         Json      @default("[]")
+  tokensUsed       Int       @default(0) @map("tokens_used")
+  costMxn          Decimal   @default(0) @map("cost_mxn") @db.Decimal(10, 2)
+  timesUsed        Int       @default(0) @map("times_used")
+  lastUsedAt       DateTime? @map("last_used_at")
+  isFavorite       Boolean   @default(false) @map("is_favorite")
+  tags             String[]  @default([])
+  folder           String?
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([originalPrompt])
+  @@index([createdAt(sort: Desc)])
+  @@index([userId, isFavorite])
+  @@map("stories")
 }

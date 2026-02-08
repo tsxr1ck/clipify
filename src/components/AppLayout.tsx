@@ -1,5 +1,5 @@
 import { Outlet, NavLink, useNavigate } from 'react-router-dom';
-import { Sun, Moon, Sparkles, Video, Image, Wallet, LogOut, User, ChevronDown, AlertCircle, Loader2 } from 'lucide-react';
+import { Sun, Moon, Sparkles, Video, Image, Wallet, LogOut, User, ChevronDown, AlertCircle, Loader2, Wand2, Library } from 'lucide-react';
 import { useEffect, useState, useRef } from 'react';
 import { themeStorage } from '@/utils/indexedDB';
 import { useAuth } from '@/context/AuthContext';
@@ -90,6 +90,30 @@ export function AppLayout() {
                     >
                         <Image className="w-4 h-4" />
                         Image
+                    </NavLink>
+                    <NavLink
+                        to="/scene-builder"
+                        className={({ isActive }) =>
+                            `flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${isActive
+                                ? 'bg-gradient-to-br from-purple-500 to-blue-500 text-white'
+                                : 'text-muted-foreground hover:text-foreground hover:bg-primary/10'
+                            }`
+                        }
+                    >
+                        <Wand2 className="w-4 h-4" />
+                        AI Scene
+                    </NavLink>
+                    <NavLink
+                        to="/library"
+                        className={({ isActive }) =>
+                            `flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${isActive
+                                ? 'bg-gradient-to-br from-amber-500 to-orange-500 text-white'
+                                : 'text-muted-foreground hover:text-foreground hover:bg-primary/10'
+                            }`
+                        }
+                    >
+                        <Library className="w-4 h-4" />
+                        Library
                     </NavLink>
                 </nav>
 

@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import {
     Video,
     Loader2,
@@ -11,15 +12,34 @@ import {
     DollarSign,
     Clock,
     ArrowRightLeft,
+    Wand2,
+    ChevronDown,
+    ChevronUp,
+    Film,
+    BookOpen,
+    ChevronLeft,
+    ChevronRight,
+    Import,
 } from 'lucide-react';
+import { toast } from 'sonner';
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+} from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
-import { useApplication, useApiKey } from '@/context/ApplicationContext';
-import { stylesService, charactersService } from '@/services/api';
+import { useApplication } from '@/context/ApplicationContext';
+import { useAuth } from '@/context/AuthContext';
+import { stylesService, charactersService, generateSceneConfig, generateStoryConfig, calculateStoryCost, sceneBuilderProService } from '@/services/api';
 import type { Style } from '@/services/api/stylesService';
 import type { Character } from '@/services/api/charactersService';
+import type { SceneBuilderResult, StorySegment } from '@/services/api/sceneBuilderService';
 import { base64ToDataUrl } from '@/utils/imageProcessing';
 import {
     checkVeoAccess,
@@ -31,6 +51,18 @@ import { VideoGeneratingModal } from '@/components/shared/VideoGeneratingModal';
 import { StyleSelectorModal } from '@/components/shared/StyleSelectorModal';
 import { CharacterSelectorModal } from '@/components/shared/CharacterSelectorModal';
 import type { VideoDuration } from '@/types';
+import { PRICING } from '@/config/constants';
+
+type BuilderMode = 'scene' | 'story';
+
+interface LocationState {
+    generatedScene?: SceneBuilderResult;
+    generatedStory?: {
+        title: string;
+        description: string;
+        segments: StorySegment[];
+    };
+}
 
 const durationOptions: { value: VideoDuration; label: string }[] = [
     { value: 2, label: '2s' },
@@ -40,12 +72,12 @@ const durationOptions: { value: VideoDuration; label: string }[] = [
 ];
 
 // Pricing constants
-const VEO_COST_PER_SECOND_USD = 0.05;
 const USD_TO_MXN = 17.5;
 
 export function Step3_VideoGeneration() {
+    const { user } = useAuth();
     const { state, prevStep, setStep, setSelectedStyle: setGlobalStyleId, setSelectedCharacter: setGlobalCharacterId } = useApplication();
-    const { key: apiKey } = useApiKey();
+    const location = useLocation();
 
     // Style and character from API
     const [selectedStyle, setSelectedStyle] = useState<Style | null>(null);
@@ -78,6 +110,67 @@ export function Step3_VideoGeneration() {
     const [progressMessage, setProgressMessage] = useState<string>('');
     const [elapsedTime, setElapsedTime] = useState(0);
 
+    // AI Scene/Story Builder state
+    const [builderMode, setBuilderMode] = useState<BuilderMode>('scene');
+    const [segmentCount, setSegmentCount] = useState(3);
+    const [aiPrompt, setAiPrompt] = useState('');
+    const [isGeneratingScene, setIsGeneratingScene] = useState(false);
+    const [sceneBuilderOpen, setSceneBuilderOpen] = useState(true);
+    const [sceneBuilderError, setSceneBuilderError] = useState<string | null>(null);
+    const [lastSceneCost, setLastSceneCost] = useState<number | null>(null);
+
+    // Story mode state
+    // Story mode state
+    const [storySegments, setStorySegments] = useState<StorySegment[]>([]);
+    const [storyTitle, setStoryTitle] = useState('');
+    const [currentSegmentIndex, setCurrentSegmentIndex] = useState(0);
+
+    // Import Story State
+    const [showImportModal, setShowImportModal] = useState(false);
+    const [importJson, setImportJson] = useState('');
+    const [importError, setImportError] = useState<string | null>(null);
+
+    // Pro Builder State
+    const [useProBuilder, setUseProBuilder] = useState(false);
+    const canUseProBuilder = user?.id === 'fb430091-ddba-4aa7-82d6-228528124087';
+
+    // Handle route state from /scene-builder navigation
+    useEffect(() => {
+        const routeState = location.state as LocationState | undefined;
+        if (routeState?.generatedScene) {
+            const scene = routeState.generatedScene;
+            setEscena(scene.escena);
+            setFondo(scene.fondo || '');
+            setAccion(scene.accion);
+            setDialogo(scene.dialogo);
+            setVoiceStyle(scene.voiceStyle || '');
+            setMovimiento(scene.movimiento || '');
+            setDuration(scene.suggestedDuration);
+            setSceneBuilderOpen(false);
+            // Clear the location state to prevent re-filling on refresh
+            window.history.replaceState({}, document.title);
+        } else if (routeState?.generatedStory) {
+            const story = routeState.generatedStory;
+            setBuilderMode('story');
+            setStoryTitle(story.title);
+            setStorySegments(story.segments);
+            setCurrentSegmentIndex(0);
+            setSceneBuilderOpen(false);
+            // Fill form with first segment
+            if (story.segments.length > 0) {
+                const firstSeg = story.segments[0];
+                setEscena(firstSeg.escena);
+                setFondo(firstSeg.fondo || '');
+                setAccion(firstSeg.accion);
+                setDialogo(firstSeg.dialogo);
+                setVoiceStyle(firstSeg.voiceStyle || '');
+                setMovimiento(firstSeg.movimiento || '');
+                setDuration(8);
+            }
+            window.history.replaceState({}, document.title);
+        }
+    }, [location.state]);
+
     // Elapsed time timer during generation
     useEffect(() => {
         if (!isGenerating) {
@@ -91,8 +184,8 @@ export function Step3_VideoGeneration() {
     }, [isGenerating]);
 
     // Calculate estimated cost
-    const estimatedCostUSD = duration * VEO_COST_PER_SECOND_USD;
-    const estimatedCostMXN = estimatedCostUSD * USD_TO_MXN;
+    const estimatedCostMXN = duration * PRICING.VIDEO_PER_SECOND;
+    const estimatedCostUSD = estimatedCostMXN / USD_TO_MXN;
 
     // Load selected style and character from API
     useEffect(() => {
@@ -118,19 +211,177 @@ export function Step3_VideoGeneration() {
     // Check Veo access on mount
     useEffect(() => {
         async function checkAccess() {
-            if (apiKey) {
-                const available = await checkVeoAccess(apiKey);
-                setVeoAvailable(available);
-            }
+            const available = await checkVeoAccess();
+            setVeoAvailable(available);
             setIsCheckingVeo(false);
         }
         checkAccess();
-    }, [apiKey]);
+    }, []);
 
     const isFormValid = escena.trim() && accion.trim() && dialogo.trim();
 
+    // AI Scene Builder handler
+    const handleGenerateScene = async () => {
+        if (!aiPrompt.trim()) return;
+
+        setIsGeneratingScene(true);
+        setSceneBuilderError(null);
+        setLastSceneCost(null);
+
+        try {
+            const result = useProBuilder
+                ? await sceneBuilderProService.generateSceneConfig(aiPrompt.trim())
+                : await generateSceneConfig(aiPrompt.trim());
+
+            // Fill in the form fields with AI-generated values
+            setEscena(result.scene.escena);
+
+            // Handle Pro fields if available
+            let fondoText = result.scene.fondo || '';
+            if (result.scene.condicionesFisicas) {
+                fondoText += `\n\n[Physical Conditions]: ${result.scene.condicionesFisicas}`;
+            }
+            if (result.scene.contextoInvisible) {
+                fondoText += `\n[Invisible Context]: ${result.scene.contextoInvisible}`;
+            }
+            setFondo(fondoText);
+
+            setAccion(result.scene.accion);
+            setDialogo(result.scene.dialogo);
+            setVoiceStyle(result.scene.voiceStyle || '');
+
+            let movimientoText = result.scene.movimiento || '';
+            if (result.scene.defectosTecnicos) {
+                movimientoText += `\n[Technical Defects]: ${result.scene.defectosTecnicos}`;
+            }
+            setMovimiento(movimientoText);
+
+            setDuration(result.scene.suggestedDuration);
+            setLastSceneCost(result.costMXN);
+
+            // Collapse the AI section after successful generation
+            setSceneBuilderOpen(false);
+        } catch (err) {
+            setSceneBuilderError(err instanceof Error ? err.message : 'Failed to generate scene');
+        } finally {
+            setIsGeneratingScene(false);
+        }
+    };
+
+    // AI Story Builder handler
+    const handleGenerateStory = async () => {
+        if (!aiPrompt.trim()) return;
+
+        setIsGeneratingScene(true);
+        setSceneBuilderError(null);
+        setLastSceneCost(null);
+        setStorySegments([]);
+
+        try {
+            const result = useProBuilder
+                ? await sceneBuilderProService.generateStoryConfig(aiPrompt.trim(), segmentCount)
+                : await generateStoryConfig(aiPrompt.trim(), segmentCount);
+
+            // Store story data
+            setStoryTitle(result.storyTitle);
+            setStorySegments(result.segments);
+            setCurrentSegmentIndex(0);
+            setLastSceneCost(result.costMXN);
+
+            // Fill form with first segment
+            if (result.segments.length > 0) {
+                const firstSeg = result.segments[0];
+                setEscena(firstSeg.escena);
+
+                let fondoText = firstSeg.fondo || '';
+                if (firstSeg.condicionesFisicas) {
+                    fondoText += `\n\n[Physical Conditions]: ${firstSeg.condicionesFisicas}`;
+                }
+                if (firstSeg.contextoInvisible) {
+                    fondoText += `\n[Invisible Context]: ${firstSeg.contextoInvisible}`;
+                }
+                setFondo(fondoText);
+
+                setAccion(firstSeg.accion);
+                setDialogo(firstSeg.dialogo);
+                setVoiceStyle(firstSeg.voiceStyle || '');
+
+                let movimientoText = firstSeg.movimiento || '';
+                if (firstSeg.defectosTecnicos) {
+                    movimientoText += `\n[Technical Defects]: ${firstSeg.defectosTecnicos}`;
+                }
+                setMovimiento(movimientoText);
+
+                setDuration(8);
+            }
+        } catch (err) {
+            setSceneBuilderError(err instanceof Error ? err.message : 'Failed to generate story');
+        } finally {
+            setIsGeneratingScene(false);
+        }
+    };
+
+    const handleImportStory = () => {
+        if (!importJson.trim()) return;
+
+        try {
+            const parsed = JSON.parse(importJson);
+
+            // Basic validation
+            if (!parsed.segments || !Array.isArray(parsed.segments)) {
+                throw new Error('Invalid JSON: Missing "segments" array.');
+            }
+
+            if (parsed.segments.length === 0) {
+                throw new Error('Invalid JSON: "segments" array is empty.');
+            }
+
+            setStoryTitle(parsed.storyTitle || 'Imported Story');
+            setStorySegments(parsed.segments);
+            setLastSceneCost(parsed.costMXN || null);
+            setBuilderMode('story');
+            setSegmentCount(parsed.segments.length);
+            setCurrentSegmentIndex(0);
+
+            // Fill first segment
+            const firstSeg = parsed.segments[0];
+            setEscena(firstSeg.escena || '');
+
+            let fondoText = firstSeg.fondo || '';
+            if (firstSeg.condicionesFisicas) {
+                fondoText += `\n\n[Physical Conditions]: ${firstSeg.condicionesFisicas}`;
+            }
+            if (firstSeg.contextoInvisible) {
+                fondoText += `\n[Invisible Context]: ${firstSeg.contextoInvisible}`;
+            }
+            setFondo(fondoText);
+
+            setAccion(firstSeg.accion || '');
+            setDialogo(firstSeg.dialogo || '');
+            setVoiceStyle(firstSeg.voiceStyle || '');
+
+            let movimientoText = firstSeg.movimiento || '';
+            if (firstSeg.defectosTecnicos) {
+                movimientoText += `\n[Technical Defects]: ${firstSeg.defectosTecnicos}`;
+            }
+            setMovimiento(movimientoText);
+
+            setDuration(firstSeg.suggestedDuration || 8);
+
+            setShowImportModal(false);
+            setImportJson('');
+            setImportError(null);
+            setSceneBuilderOpen(false);
+            toast.success('Story imported successfully!');
+        } catch (err) {
+            console.error('Import failed:', err);
+            setImportError(err instanceof Error ? err.message : 'Failed to parse JSON');
+            toast.error('Failed to import story. Please check the JSON format.');
+        }
+    };
+
     const handleGenerate = async () => {
-        if (!apiKey || !selectedStyle || !selectedCharacter || !isFormValid) return;
+        if (!selectedStyle || !selectedCharacter || !isFormValid) return;
 
         setIsGenerating(true);
         setError(null);
@@ -166,7 +417,6 @@ export function Step3_VideoGeneration() {
                 imageBase64,
                 prompt,
                 duration,
-                apiKey,
                 {
                     styleId: selectedStyle.id,
                     characterId: selectedCharacter.id,
@@ -189,10 +439,35 @@ export function Step3_VideoGeneration() {
                 mimeType: result.mimeType,
                 costMXN: result.costMXN,
             });
+
+            // Play success sound
+            const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3'); // Smooth chime
+            audio.volume = 0.5;
+            audio.play().catch(e => console.log('Audio play failed (user interaction needed first):', e));
+
             setProgressMessage('');
+            setProgressMessage('');
+            toast.success('Video generated successfully!');
         } catch (err) {
-            setError(err instanceof Error ? err.message : 'Failed to generate video');
+            const errorMessage = err instanceof Error ? err.message : 'Failed to generate video';
+            setError(errorMessage);
             setProgressMessage('');
+
+            // Special handling for high load error (code 8)
+            // Using a simple heuristic or if the error object lets us check code, 
+            // but here we likely have the message string.
+            if (errorMessage.toLowerCase().includes('high load') || errorMessage.includes('code":8')) {
+                // Friendly error message for Code 8 (Resource Exhausted)
+                toast.error(
+                    'Veo is currently experiencing very high demand! 🌟 Please wait a moment and try again. (Video Error Code: 8)',
+                    {
+                        duration: 6000,
+                        icon: <Sparkles className="w-5 h-5 text-purple-500" />,
+                    }
+                );
+            } else {
+                toast.error(errorMessage);
+            }
         } finally {
             setIsGenerating(false);
         }
@@ -407,6 +682,273 @@ export function Step3_VideoGeneration() {
                                 📋 Scene Configuration
                             </h3>
 
+                            {/* AI Scene/Story Builder */}
+                            <div className="mb-4 rounded-xl border border-purple-500/30 bg-gradient-to-r from-purple-500/5 to-blue-500/5 overflow-hidden">
+                                <button
+                                    type="button"
+                                    onClick={() => setSceneBuilderOpen(!sceneBuilderOpen)}
+                                    className="w-full px-4 py-3 flex items-center justify-between text-left hover:bg-primary/5 transition-colors"
+                                >
+                                    <span className="flex items-center gap-2 text-sm font-medium">
+                                        <Wand2 className="w-4 h-4 text-purple-500" />
+                                        ✨ AI {builderMode === 'scene' ? 'Scene' : 'Story'} Builder
+                                        <span className="text-xs text-muted-foreground font-normal">
+                                            ~${builderMode === 'scene'
+                                                ? PRICING.SCENE_BUILDER.toFixed(2)
+                                                : calculateStoryCost(segmentCount).toFixed(2)
+                                            } MXN
+                                        </span>
+                                    </span>
+                                    {sceneBuilderOpen ? (
+                                        <ChevronUp className="w-4 h-4 text-muted-foreground" />
+                                    ) : (
+                                        <ChevronDown className="w-4 h-4 text-muted-foreground" />
+                                    )}
+                                </button>
+
+                                {sceneBuilderOpen && (
+                                    <div className="px-4 pb-4 space-y-3">
+                                        {/* Pro Toggle - Only for specific user */}
+                                        {canUseProBuilder && (
+                                            <div className="flex justify-center mb-1">
+                                                <div
+                                                    className="flex items-center gap-2 bg-amber-500/10 border border-amber-500/20 px-3 py-1 rounded-full cursor-pointer hover:bg-amber-500/20 transition-colors"
+                                                    onClick={() => setUseProBuilder(!useProBuilder)}
+                                                >
+                                                    <span className="text-xs font-bold text-amber-600 dark:text-amber-400 uppercase tracking-wider">
+                                                        Hyper-Realism
+                                                    </span>
+                                                    <div className={`w-8 h-4 rounded-full p-0.5 transition-colors ${useProBuilder ? 'bg-amber-500' : 'bg-muted'}`}>
+                                                        <div className={`w-3 h-3 bg-white rounded-full shadow-sm transition-transform ${useProBuilder ? 'translate-x-4' : 'translate-x-0'}`} />
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {/* Mode Toggle */}
+                                        <div className="flex justify-center">
+                                            <div className="inline-flex p-1 rounded-lg glass">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setBuilderMode('scene')}
+                                                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-all ${builderMode === 'scene'
+                                                        ? 'bg-gradient-to-br from-purple-500 to-blue-500 text-white'
+                                                        : 'text-muted-foreground hover:text-foreground'
+                                                        }`}
+                                                >
+                                                    <Film className="w-3 h-3" />
+                                                    Scene
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setBuilderMode('story')}
+                                                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-all ${builderMode === 'story'
+                                                        ? 'bg-gradient-to-br from-purple-500 to-blue-500 text-white'
+                                                        : 'text-muted-foreground hover:text-foreground'
+                                                        }`}
+                                                >
+                                                    <BookOpen className="w-3 h-3" />
+                                                    Story
+                                                </button>
+                                            </div>
+                                        </div>
+
+                                        <p className="text-xs text-muted-foreground text-center">
+                                            {builderMode === 'scene'
+                                                ? 'Describe your video idea and AI will fill the form.'
+                                                : 'Describe your story and AI will generate multiple segments.'
+                                            }
+                                        </p>
+
+                                        {/* Segment Count (Story mode only) */}
+                                        {builderMode === 'story' && (
+                                            <div className="flex items-center justify-center gap-2 p-2 rounded-lg glass">
+                                                <span className="text-xs font-medium">Segments:</span>
+                                                {[2, 3, 4, 5, 6].map((count) => (
+                                                    <button
+                                                        key={count}
+                                                        type="button"
+                                                        onClick={() => setSegmentCount(count)}
+                                                        disabled={isGeneratingScene}
+                                                        className={`w-7 h-7 rounded-md text-xs font-medium transition-all ${segmentCount === count
+                                                            ? 'bg-gradient-to-br from-purple-500 to-blue-500 text-white'
+                                                            : 'glass hover:bg-primary/10'
+                                                            }`}
+                                                    >
+                                                        {count}
+                                                    </button>
+                                                ))}
+                                                <span className="text-xs text-muted-foreground">
+                                                    ({segmentCount * 8}s)
+                                                </span>
+                                            </div>
+                                        )}
+
+                                        {/* Import Button */}
+                                        <div className="flex justify-end px-1">
+                                            <button
+                                                type="button"
+                                                onClick={() => setShowImportModal(true)}
+                                                className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-primary transition-colors"
+                                            >
+                                                <Import className="w-3 h-3" />
+                                                Import JSON
+                                            </button>
+                                        </div>
+
+                                        <Textarea
+                                            value={aiPrompt}
+                                            onChange={(e) => setAiPrompt(e.target.value)}
+                                            placeholder={builderMode === 'scene'
+                                                ? "Ej: Un capybara bailando en una discoteca con luces neón..."
+                                                : "Ej: Una historia de un gato samurai que aprende una lección de humildad..."
+                                            }
+                                            className="glass-input min-h-[70px] text-sm"
+                                            disabled={isGeneratingScene || isGenerating}
+                                        />
+
+                                        {sceneBuilderError && (
+                                            <div className="p-2 rounded-lg bg-destructive/10 border border-destructive/30">
+                                                <p className="text-xs text-destructive">{sceneBuilderError}</p>
+                                            </div>
+                                        )}
+
+                                        {lastSceneCost && (
+                                            <div className="p-2 rounded-lg bg-green-500/10 border border-green-500/30">
+                                                <p className="text-xs text-green-600 dark:text-green-400">
+                                                    ✓ {builderMode === 'scene' ? 'Scene' : 'Story'} generated • Cost: ${lastSceneCost.toFixed(2)} MXN
+                                                </p>
+                                            </div>
+                                        )}
+
+                                        <Button
+                                            type="button"
+                                            onClick={builderMode === 'scene' ? handleGenerateScene : handleGenerateStory}
+                                            disabled={!aiPrompt.trim() || isGeneratingScene || isGenerating}
+                                            className="w-full bg-gradient-to-r from-purple-500 to-blue-500 hover:from-purple-600 hover:to-blue-600 text-white"
+                                        >
+                                            {isGeneratingScene ? (
+                                                <>
+                                                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                                    Generating {builderMode === 'scene' ? 'Scene' : 'Story'}...
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <Wand2 className="w-4 h-4 mr-2" />
+                                                    Generate {builderMode === 'scene' ? 'Scene' : `${segmentCount}-Segment Story`}
+                                                </>
+                                            )}
+                                        </Button>
+
+                                        {/* Story Segments Carousel (when story is generated) */}
+                                        {builderMode === 'story' && storySegments.length > 0 && (
+                                            <div className="mt-3 pt-3 border-t border-border">
+                                                <div className="flex items-center justify-between mb-2">
+                                                    <h4 className="text-xs font-medium flex items-center gap-1.5">
+                                                        📖 {storyTitle || 'Generated Story'}
+                                                    </h4>
+                                                    <span className="text-xs text-muted-foreground">
+                                                        {storySegments.length} segments • {storySegments.length * 8}s
+                                                    </span>
+                                                </div>
+
+                                                {/* Segment Pills */}
+                                                <div className="flex flex-wrap gap-1.5 mb-2">
+                                                    {storySegments.map((seg, idx) => (
+                                                        <button
+                                                            key={idx}
+                                                            type="button"
+                                                            onClick={() => {
+                                                                setCurrentSegmentIndex(idx);
+                                                                // Fill form with this segment
+                                                                setEscena(seg.escena);
+
+                                                                let fondoText = seg.fondo || '';
+                                                                if (seg.condicionesFisicas) {
+                                                                    fondoText += `\n\n[Physical Conditions]: ${seg.condicionesFisicas}`;
+                                                                }
+                                                                if (seg.contextoInvisible) {
+                                                                    fondoText += `\n[Invisible Context]: ${seg.contextoInvisible}`;
+                                                                }
+                                                                setFondo(fondoText);
+
+                                                                setAccion(seg.accion);
+                                                                setDialogo(seg.dialogo);
+                                                                setVoiceStyle(seg.voiceStyle || '');
+
+                                                                let movimientoText = seg.movimiento || '';
+                                                                if (seg.defectosTecnicos) {
+                                                                    movimientoText += `\n[Technical Defects]: ${seg.defectosTecnicos}`;
+                                                                }
+                                                                setMovimiento(movimientoText);
+
+                                                                setDuration(8);
+                                                            }}
+                                                            className={`flex items-center gap-1 px-2 py-1 rounded-md text-xs transition-all ${idx === currentSegmentIndex
+                                                                ? 'bg-gradient-to-br from-purple-500 to-blue-500 text-white'
+                                                                : 'glass hover:bg-primary/10'
+                                                                }`}
+                                                        >
+                                                            <span className="font-medium">{idx + 1}</span>
+                                                            <span className="truncate max-w-[80px]">{seg.title}</span>
+                                                        </button>
+                                                    ))}
+                                                </div>
+
+                                                {/* Navigation */}
+                                                <div className="flex items-center justify-between">
+                                                    <Button
+                                                        type="button"
+                                                        variant="outline"
+                                                        size="sm"
+                                                        onClick={() => {
+                                                            const newIdx = Math.max(0, currentSegmentIndex - 1);
+                                                            setCurrentSegmentIndex(newIdx);
+                                                            const seg = storySegments[newIdx];
+                                                            setEscena(seg.escena);
+                                                            setFondo(seg.fondo || '');
+                                                            setAccion(seg.accion);
+                                                            setDialogo(seg.dialogo);
+                                                            setVoiceStyle(seg.voiceStyle || '');
+                                                            setMovimiento(seg.movimiento || '');
+                                                        }}
+                                                        disabled={currentSegmentIndex === 0}
+                                                        className="h-7 text-xs glass"
+                                                    >
+                                                        <ChevronLeft className="w-3 h-3 mr-1" />
+                                                        Prev
+                                                    </Button>
+                                                    <span className="text-xs text-muted-foreground">
+                                                        Segment {currentSegmentIndex + 1} / {storySegments.length}
+                                                    </span>
+                                                    <Button
+                                                        type="button"
+                                                        variant="outline"
+                                                        size="sm"
+                                                        onClick={() => {
+                                                            const newIdx = Math.min(storySegments.length - 1, currentSegmentIndex + 1);
+                                                            setCurrentSegmentIndex(newIdx);
+                                                            const seg = storySegments[newIdx];
+                                                            setEscena(seg.escena);
+                                                            setFondo(seg.fondo || '');
+                                                            setAccion(seg.accion);
+                                                            setDialogo(seg.dialogo);
+                                                            setVoiceStyle(seg.voiceStyle || '');
+                                                            setMovimiento(seg.movimiento || '');
+                                                        }}
+                                                        disabled={currentSegmentIndex === storySegments.length - 1}
+                                                        className="h-7 text-xs glass"
+                                                    >
+                                                        Next
+                                                        <ChevronRight className="w-3 h-3 ml-1" />
+                                                    </Button>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
+
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 {/* Escena */}
                                 <div className="space-y-1.5">
@@ -570,7 +1112,7 @@ export function Step3_VideoGeneration() {
                                 </div>
                                 <div className="flex items-center justify-between text-sm">
                                     <span className="text-muted-foreground">Rate</span>
-                                    <span className="font-medium text-foreground">$0.05 USD/s</span>
+                                    <span className="font-medium text-foreground">$0.5425 USD/s</span>
                                 </div>
                                 <div className="border-t border-border pt-2 mt-2">
                                     <div className="flex items-center justify-between">
@@ -672,6 +1214,52 @@ export function Step3_VideoGeneration() {
                 onSelect={handleCharacterSwap}
                 currentCharacterId={selectedCharacter?.id}
             />
+            {/* Import Story Modal */}
+            <Dialog open={showImportModal} onOpenChange={(open) => !open && setShowImportModal(false)}>
+                <DialogContent className="glass-modal max-w-2xl max-h-[85vh] flex flex-col overflow-hidden">
+                    <DialogHeader className="flex-shrink-0">
+                        <DialogTitle className="flex items-center gap-2">
+                            <Import className="w-5 h-5" />
+                            Import Story JSON
+                        </DialogTitle>
+                        <DialogDescription>
+                            Paste your scene or story JSON configuration below.
+                        </DialogDescription>
+                    </DialogHeader>
+
+                    <div className="space-y-4 py-2 flex-1 overflow-y-auto px-1">
+                        <Textarea
+                            value={importJson}
+                            onChange={(e) => {
+                                setImportJson(e.target.value);
+                                setImportError(null);
+                            }}
+                            placeholder='Paste JSON here... {"segments": [...]}'
+                            className="font-mono text-xs min-h-[300px] glass-input resize-y"
+                        />
+
+                        {importError && (
+                            <div className="p-3 rounded-lg bg-destructive/10 border border-destructive/30 text-destructive text-sm flex items-start gap-2">
+                                <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />
+                                <span>{importError}</span>
+                            </div>
+                        )}
+                    </div>
+
+                    <DialogFooter className="flex-shrink-0 pt-2">
+                        <Button variant="ghost" onClick={() => setShowImportModal(false)}>
+                            Cancel
+                        </Button>
+                        <Button
+                            onClick={handleImportStory}
+                            disabled={!importJson.trim()}
+                            className="bg-primary text-primary-foreground hover:bg-primary/90"
+                        >
+                            Import Story
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </div>
     );
 }
