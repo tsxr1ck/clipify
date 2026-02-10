@@ -276,7 +276,7 @@ export function StyleCreator({ open, onClose, onStyleCreated }: StyleCreatorProp
 
                     {/* Cost Estimate */}
                     <p className="text-center text-xs text-muted-foreground">
-                        Estimated cost: ~$0.01 per style extraction
+                        Estimated cost: ~$0.015 USD per style extraction (Gemini 2.5 Flash)
                     </p>
                 </div>
             </DialogContent>

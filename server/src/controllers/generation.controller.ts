@@ -280,31 +280,69 @@ export const generationController = {
 
                 try {
                     let buffer: Buffer;
+                    const outputUrlStr = data.outputUrl!;
 
-                    // Helper to detect if string is likely base64 (long, no spaces, typical chars)
-                    const isUrl = data.outputUrl.startsWith('http') || data.outputUrl.startsWith('gs://');
+                    console.log(`Processing ${existing.generationType} output (length: ${outputUrlStr.length} chars)`);
 
-                    if (data.outputUrl.startsWith('data:')) {
-                        // Handle standard data URI
-                        console.log(`Processing data URI for ${existing.generationType}`);
-                        const base64Data = data.outputUrl.split(';base64,').pop();
+                    // Check if it's a URL
+                    const isHttpUrl = outputUrlStr.startsWith('http://') || outputUrlStr.startsWith('https://');
+                    const isGsUrl = outputUrlStr.startsWith('gs://');
+                    const isDataUri = outputUrlStr.startsWith('data:');
+
+                    if (isDataUri) {
+                        // Handle standard data URI (data:image/png;base64,...)
+                        console.log(`Detected data URI for ${existing.generationType}`);
+                        const base64Data = outputUrlStr.split(';base64,').pop();
                         if (!base64Data) throw new Error('Invalid data URI format');
                         buffer = Buffer.from(base64Data, 'base64');
-                    } else if (!isUrl && data.outputUrl.length > 1000) {
-                        // Handle raw base64 string
-                        console.log(`Processing raw base64 for ${existing.generationType}`);
-                        buffer = Buffer.from(data.outputUrl!, 'base64');
-                    } else {
+                    } else if (isHttpUrl || isGsUrl) {
                         // Handle URL download
-                        console.log(`Downloading output from URL: ${data.outputUrl}`);
-                        const response = await fetch(data.outputUrl);
+                        console.log(`Downloading from URL: ${outputUrlStr.substring(0, 100)}...`);
+                        const response = await fetch(outputUrlStr);
 
                         if (!response.ok) {
-                            throw new Error(`Failed to fetch media from URL: ${response.status} ${response.statusText}`);
+                            throw new Error(`Failed to fetch: ${response.status} ${response.statusText}`);
                         }
 
                         const arrayBuffer = await response.arrayBuffer();
                         buffer = Buffer.from(arrayBuffer);
+                    } else {
+                        // Assume it's raw base64 - try to decode it
+                        console.log(`Attempting to decode as raw base64 for ${existing.generationType}`);
+
+                        try {
+                            buffer = Buffer.from(outputUrlStr, 'base64');
+
+                            // Verify it's actually valid base64 by checking if decoding produced meaningful data
+                            if (buffer.length === 0) {
+                                throw new Error('Decoded buffer is empty');
+                            }
+
+                            // For images, check for PNG/JPEG magic numbers
+                            if (!isVideo) {
+                                const isPNG = buffer[0] === 0x89 && buffer[1] === 0x50 && buffer[2] === 0x4E && buffer[3] === 0x47;
+                                const isJPEG = buffer[0] === 0xFF && buffer[1] === 0xD8 && buffer[2] === 0xFF;
+                                const isWebP = buffer[8] === 0x57 && buffer[9] === 0x45 && buffer[10] === 0x42 && buffer[11] === 0x50;
+
+                                if (!isPNG && !isJPEG && !isWebP) {
+                                    console.warn('Decoded data does not match image magic numbers');
+                                }
+                            }
+
+                            // For videos, check for common video format signatures
+                            if (isVideo) {
+                                const isMP4 = buffer[4] === 0x66 && buffer[5] === 0x74 && buffer[6] === 0x79 && buffer[7] === 0x70; // 'ftyp'
+                                const isWebM = buffer[0] === 0x1A && buffer[1] === 0x45 && buffer[2] === 0xDF && buffer[3] === 0xA3;
+
+                                if (!isMP4 && !isWebM) {
+                                    console.warn('Decoded data does not match video magic numbers');
+                                }
+                            }
+
+                            console.log(`Successfully decoded ${buffer.length} bytes from base64`);
+                        } catch (decodeError) {
+                            throw new Error(`Failed to decode base64: ${decodeError instanceof Error ? decodeError.message : 'Unknown error'}`);
+                        }
                     }
 
                     if (!buffer || buffer.length === 0) {
@@ -324,9 +362,10 @@ export const generationController = {
                     outputUrl = uploadResult.url;
                     outputKey = uploadResult.key;
 
-                    console.log(`Uploaded ${existing.generationType} to Supabase: ${outputUrl}`);
+                    console.log(`Successfully uploaded ${existing.generationType} to Supabase: ${outputUrl}`);
                 } catch (uploadError) {
                     console.error('Failed to upload to Supabase:', uploadError);
+                    console.error('Output URL preview:', data.outputUrl?.substring(0, 200));
                     // Continue with original URL if upload fails, but log it
                 }
             }

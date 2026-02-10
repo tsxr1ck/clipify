@@ -164,11 +164,12 @@ export async function generateVideo(
 
 // ==================== HIGHER LEVEL FUNCTIONS WITH LOGGING ====================
 
-// Pricing constants (display only)
+// Pricing constants in MXN (display only) - must match config/constants.ts
+// Base USD costs + 50% markup, converted at 17.5 MXN/USD
 const ESTIMATED_COSTS = {
-    STYLE: 0.18,
-    IMAGE: 0.35,
-    VIDEO: 4.375
+    STYLE: 0.26,      // Gemini 2.5 Flash analysis ($0.015 USD)
+    IMAGE: 1.31,      // Imagen 4.0 Standard ($0.075 USD)
+    VIDEO: 13.13      // Veo 3.1 Standard per second ($0.75 USD) - for default 5s video
 };
 
 export interface GenerationResult<T> {
@@ -286,8 +287,16 @@ export async function generateCharacterImageWithLogging(
         const result = await generateCharacterImage(prompt, aspectRatio, styleDetails);
 
         if (generation) {
+            // Validate base64 data before sending
+            if (!result.base64 || result.base64.length === 0) {
+                throw new Error('Generated image data is empty');
+            }
+
+            console.log(`Sending image to backend: ${result.base64.length} chars`);
+
+            // Send the actual base64 data to backend for upload to Supabase
             await generationsService.complete(generation.id, {
-                outputUrl: 'data:image/png;base64,...',
+                outputUrl: result.base64, // Send actual base64 for backend to upload
                 outputKey: `gen/${generation.id}`,
                 mimeType: result.mimeType,
                 costMxn: costMXN,
@@ -344,8 +353,16 @@ export async function generateImageWithLogging(
         const result = await generateCharacterImage(prompt, aspectRatio, null); // Style assumed in prompt
 
         if (generation) {
+            // Validate base64 data before sending
+            if (!result.base64 || result.base64.length === 0) {
+                throw new Error('Generated image data is empty');
+            }
+
+            console.log(`Sending image to backend: ${result.base64.length} chars`);
+
+            // Send the actual base64 data to backend for upload to Supabase
             await generationsService.complete(generation.id, {
-                outputUrl: 'data:image/png;base64,...', // Placeholder
+                outputUrl: result.base64, // Send actual base64 for backend to upload
                 outputKey: `gen/${generation.id}`,
                 mimeType: result.mimeType,
                 width: 1024,
@@ -384,7 +401,7 @@ export async function generateVideoWithLogging(
 ): Promise<{ videoBase64: string; mimeType: string; costMXN: number }> {
     const startTime = Date.now();
     let generation: Generation | null = null;
-    const costMXN = ESTIMATED_COSTS.VIDEO; // Fixed cost for now
+    const costMXN = ESTIMATED_COSTS.VIDEO * duration; // Per-second rate * duration
 
     try {
         generation = await generationsService.create({
@@ -401,8 +418,16 @@ export async function generateVideoWithLogging(
         const result = await generateVideo(imageBase64, motionPrompt);
 
         if (generation) {
+            // Validate base64 data before sending
+            if (!result.videoBase64 || result.videoBase64.length === 0) {
+                throw new Error('Generated video data is empty');
+            }
+
+            console.log(`Sending video to backend: ${result.videoBase64.length} chars`);
+
+            // Send the actual base64 data to backend for upload to Supabase
             await generationsService.complete(generation.id, {
-                outputUrl: 'data:video/mp4;base64,...',
+                outputUrl: result.videoBase64, // Send actual base64 for backend to upload
                 outputKey: `gen/${generation.id}`,
                 mimeType: result.mimeType,
                 durationSeconds: duration,
@@ -491,5 +516,7 @@ export function buildImagePrompt(
 // Export for compatibility if needed
 export const API_ENDPOINTS = {};
 export const COST_PER_OPERATION = {
-    imageGeneration: ESTIMATED_COSTS.IMAGE
+    imageGeneration: ESTIMATED_COSTS.IMAGE,
+    videoPerSecond: ESTIMATED_COSTS.VIDEO,
+    styleAnalysis: ESTIMATED_COSTS.STYLE,
 };

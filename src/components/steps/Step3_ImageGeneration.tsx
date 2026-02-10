@@ -10,6 +10,7 @@ import {
     ArrowRightLeft,
     Wand2,
     ChevronDown,
+    ChevronUp,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
@@ -28,8 +29,11 @@ import { ImageGeneratingModal } from '@/components/shared/ImageGeneratingModal';
 import { ImagePreviewModal } from '@/components/shared/ImagePreviewModal';
 import { StyleSelectorModal } from '@/components/shared/StyleSelectorModal';
 import { CharacterSelectorModal } from '@/components/shared/CharacterSelectorModal';
+import { MobileStyleCharacterBar } from './MobileStyleCharacterBar';
+import { MobileCostBar } from './MobileCostBar';
 import type { AspectRatio } from '@/types';
 import { useEffect, useState } from 'react';
+import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 
 const aspectRatioOptions: { value: AspectRatio; label: string }[] = [
     { value: '1:1', label: '1:1' },
@@ -39,8 +43,7 @@ const aspectRatioOptions: { value: AspectRatio; label: string }[] = [
     { value: '3:4', label: '3:4' },
 ];
 
-// Pricing constants
-const IMAGEN_COST_PER_IMAGE_USD = 0.02;
+const IMAGEN_COST_PER_IMAGE_USD = 0.075;
 const USD_TO_MXN = 17.5;
 
 export function Step3_ImageGeneration() {
@@ -52,7 +55,7 @@ export function Step3_ImageGeneration() {
     const [selectedCharacter, setSelectedCharacter] = useState<Character | null>(null);
     const [isLoading, setIsLoading] = useState(true);
 
-    // Modal state for swapping style/character
+    // Modal state
     const [showStyleSelector, setShowStyleSelector] = useState(false);
     const [showCharacterSelector, setShowCharacterSelector] = useState(false);
 
@@ -81,11 +84,9 @@ export function Step3_ImageGeneration() {
     const [progressMessage, setProgressMessage] = useState<string>('');
     const [isPreviewOpen, setIsPreviewOpen] = useState(false);
 
-    // Calculate estimated cost
     const estimatedCostUSD = IMAGEN_COST_PER_IMAGE_USD;
     const estimatedCostMXN = estimatedCostUSD * USD_TO_MXN;
 
-    // Load selected style and character from API
     useEffect(() => {
         async function loadData() {
             try {
@@ -98,7 +99,7 @@ export function Step3_ImageGeneration() {
                     setSelectedCharacter(character);
                 }
             } catch (err) {
-                console.error('Failed to load style/character:', err);
+                console.error('Failed to load data:', err);
             } finally {
                 setIsLoading(false);
             }
@@ -106,13 +107,11 @@ export function Step3_ImageGeneration() {
         loadData();
     }, [state.selectedStyleId, state.selectedCharacterId]);
 
-    // Handle swapping style
     const handleStyleSwap = (newStyle: Style) => {
         setSelectedStyle(newStyle);
         setGlobalStyleId(newStyle.id);
     };
 
-    // Handle swapping character
     const handleCharacterSwap = (newCharacter: Character) => {
         setSelectedCharacter(newCharacter);
         setGlobalCharacterId(newCharacter.id);
@@ -120,43 +119,31 @@ export function Step3_ImageGeneration() {
 
     const handleGenerateScene = async () => {
         if (!aiPrompt.trim()) return;
-
         setIsGeneratingScene(true);
         try {
             const result = useProBuilder
                 ? await sceneBuilderProService.generateImageSceneConfig(aiPrompt)
                 : await sceneBuilderService.generateImageSceneConfig(aiPrompt);
 
-            // Auto-fill form
             setEscena(result.scene.escena);
-
-            // Handle Pro fields / extra details by appending to fondo
             let fondoText = result.scene.fondo || '';
-
-            // If it's the Pro result or just has extra fields, append them
-            // We cast to any to safely access potential pro fields without strict type guards in generic flow
             const scene: any = result.scene;
-
             if (scene.lighting) fondoText += `\n\n[Lighting]: ${scene.lighting}`;
             if (scene.camera) fondoText += `\n[Camera]: ${scene.camera}`;
             if (scene.condicionesFisicas) fondoText += `\n[Physical]: ${scene.condicionesFisicas}`;
-            if (scene.contextoInvisible) fondoText += `\n[Context]: ${scene.contextoInvisible}`;
-            if (scene.defectosTecnicos) fondoText += `\n[Defects]: ${scene.defectosTecnicos}`;
 
             setFondo(fondoText.trim());
             setAccion(result.scene.accion);
-
-            toast.success('Scene generated successfully!');
-            setShowSceneBuilder(false); // Collapse after success
+            toast.success('Scene configured successfully!');
+            setShowSceneBuilder(false);
         } catch (err) {
-            console.error('Failed to generate scene:', err);
             toast.error(err instanceof Error ? err.message : 'Failed to generate scene');
         } finally {
             setIsGeneratingScene(false);
         }
     };
 
-    const isFormValid = escena.trim() && accion.trim();
+    const isFormValid = Boolean(escena.trim() && accion.trim());
 
     const handleGenerate = async () => {
         if (!apiKey || !selectedStyle || !selectedCharacter || !isFormValid) return;
@@ -191,14 +178,13 @@ export function Step3_ImageGeneration() {
                 base64: result.data,
                 mimeType: 'image/png',
             });
-
             setProgressMessage('');
             toast.success('Image generated successfully!');
         } catch (err) {
-            const errorMessage = err instanceof Error ? err.message : 'Failed to generate image';
-            setError(errorMessage);
+            const msg = err instanceof Error ? err.message : 'Failed to generate image';
+            setError(msg);
+            toast.error(msg);
             setProgressMessage('');
-            toast.error(errorMessage);
         } finally {
             setIsGenerating(false);
         }
@@ -206,7 +192,6 @@ export function Step3_ImageGeneration() {
 
     const handleDownload = () => {
         if (!generatedImage) return;
-
         const link = document.createElement('a');
         link.href = base64ToDataUrl(generatedImage.base64, generatedImage.mimeType);
         link.download = `clipify-image-${Date.now()}.png`;
@@ -214,294 +199,197 @@ export function Step3_ImageGeneration() {
     };
 
     const handleStartNew = () => {
-        setEscena('');
-        setFondo('');
-        setAccion('');
-        setAspectRatio('1:1');
-        setGeneratedImage(null);
-        setError(null);
+        setEscena(''); setFondo(''); setAccion('');
+        setAspectRatio('1:1'); setGeneratedImage(null); setError(null);
     };
 
     if (isLoading) {
-        return (
-            <div className="w-full flex items-center justify-center py-20">
-                <Loader2 className="w-8 h-8 animate-spin text-primary" />
-            </div>
-        );
+        return <div className="w-full h-96 flex items-center justify-center"><Loader2 className="w-10 h-10 animate-spin text-primary" /></div>;
     }
 
     if (!selectedStyle || !selectedCharacter) {
         return (
-            <div className="w-full max-w-lg mx-auto text-center py-12 glass-card">
-                <p className="text-muted-foreground">Please select a style and character first</p>
-                <Button onClick={() => setStep(1)} className="mt-4 btn-glass">
-                    Go Back
-                </Button>
+            <div className="w-full max-w-lg mx-auto text-center py-20 glass rounded-3xl">
+                <p className="text-muted-foreground text-lg mb-6">Missing selection data</p>
+                <Button onClick={() => setStep(1)} variant="outline">Go Back</Button>
             </div>
         );
     }
 
     return (
-        <div className="w-full max-w-7xl mx-auto px-4 animate-fadeIn">
+        <div className="w-full max-w-7xl mx-auto px-4 animate-scaleIn pb-24">
             {/* Header */}
-            <div className="text-center mb-6">
-                <div className="w-14 h-14 mx-auto mb-3 rounded-2xl bg-gradient-to-br from-cyan-500 to-blue-500 flex items-center justify-center">
-                    <ImageIcon className="w-7 h-7 text-white" />
-                </div>
-                <h2 className="text-2xl font-bold gradient-text">Image Generation</h2>
-                <p className="text-muted-foreground mt-1 text-sm">
-                    Create stunning images with your character and style
-                </p>
+            <div className="text-center mb-8">
+                <h2 className="text-3xl font-bold gradient-text">Image Generation</h2>
+                <p className="text-muted-foreground mt-2">Create stunning visuals in seconds</p>
             </div>
 
-            {/* 3-Column Layout */}
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-                {/* Column 1: Style & Character */}
-                <div className="lg:col-span-3 space-y-4">
-                    {/* Style Card - Clickable */}
-                    <button
-                        onClick={() => setShowStyleSelector(true)}
-                        className="w-full glass-card p-4 text-left hover:ring-2 hover:ring-primary/50 transition-all group"
-                    >
-                        <h3 className="text-sm font-semibold text-foreground mb-3 flex items-center justify-between">
-                            <span className="flex items-center gap-2">
-                                <Palette className="w-4 h-4" />
-                                Style
-                            </span>
-                            <ArrowRightLeft className="w-4 h-4 text-muted-foreground group-hover:text-primary transition-colors" />
-                        </h3>
-                        <div className="space-y-3">
-                            <img
-                                src={selectedStyle.referenceImageUrl}
-                                alt={selectedStyle.name}
-                                className="w-full aspect-square rounded-xl object-cover"
-                            />
-                            <div>
-                                <p className="font-medium text-foreground">{selectedStyle.name}</p>
-                                <div className="flex flex-wrap gap-1 mt-2">
-                                    {selectedStyle.keywords.slice(0, 4).map((keyword, i) => (
-                                        <span
-                                            key={i}
-                                            className="px-2 py-0.5 text-xs rounded-full bg-primary/10 text-primary"
-                                        >
-                                            {keyword}
-                                        </span>
-                                    ))}
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+                {/* Left Column: Context */}
+                <div className="lg:col-span-3 space-y-6">
+                    <Card className="glass-card border-none">
+                        <CardHeader className="p-4 pb-2">
+                            <CardTitle className="text-sm font-medium text-muted-foreground">CONTEXT</CardTitle>
+                        </CardHeader>
+                        <CardContent className="p-4 space-y-4">
+                            {/* Style */}
+                            <div
+                                className="group relative rounded-xl overflow-hidden aspect-square cursor-pointer"
+                                onClick={() => setShowStyleSelector(true)}
+                            >
+                                <img src={selectedStyle.referenceImageUrl} alt={selectedStyle.name} className="w-full h-full object-cover transition-transform group-hover:scale-110" />
+                                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                    <span className="text-xs font-medium text-white flex items-center gap-1"><ArrowRightLeft className="w-3 h-3" /> Change</span>
+                                </div>
+                                <div className="absolute bottom-2 left-2 right-2">
+                                    <span className="text-xs font-bold text-white bg-black/50 backdrop-blur-md px-2 py-1 rounded-md flex items-center gap-1 w-fit">
+                                        <Palette className="w-3 h-3" /> {selectedStyle.name}
+                                    </span>
                                 </div>
                             </div>
-                        </div>
-                        <p className="text-xs text-muted-foreground mt-2 text-center opacity-0 group-hover:opacity-100 transition-opacity">
-                            Click to change style
-                        </p>
-                    </button>
 
-                    {/* Character Card - Clickable */}
-                    <button
-                        onClick={() => setShowCharacterSelector(true)}
-                        className="w-full glass-card p-4 text-left hover:ring-2 hover:ring-primary/50 transition-all group"
-                    >
-                        <h3 className="text-sm font-semibold text-foreground mb-3 flex items-center justify-between">
-                            <span className="flex items-center gap-2">
-                                <User className="w-4 h-4" />
-                                Character
-                            </span>
-                            <ArrowRightLeft className="w-4 h-4 text-muted-foreground group-hover:text-primary transition-colors" />
-                        </h3>
-                        <div className="space-y-3">
-                            <img
-                                src={selectedCharacter.imageUrl}
-                                alt={selectedCharacter.name}
-                                className="w-full aspect-square rounded-xl object-cover"
-                            />
-                            <div>
-                                <p className="font-medium text-foreground">{selectedCharacter.name}</p>
-                                <p className="text-xs text-muted-foreground mt-1 line-clamp-2">
-                                    {selectedCharacter.prompt}
-                                </p>
+                            {/* Character */}
+                            <div
+                                className="group relative rounded-xl overflow-hidden aspect-square cursor-pointer"
+                                onClick={() => setShowCharacterSelector(true)}
+                            >
+                                <img src={selectedCharacter.imageUrl} alt={selectedCharacter.name} className="w-full h-full object-cover transition-transform group-hover:scale-110" />
+                                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                    <span className="text-xs font-medium text-white flex items-center gap-1"><ArrowRightLeft className="w-3 h-3" /> Change</span>
+                                </div>
+                                <div className="absolute bottom-2 left-2 right-2">
+                                    <span className="text-xs font-bold text-white bg-black/50 backdrop-blur-md px-2 py-1 rounded-md flex items-center gap-1 w-fit">
+                                        <User className="w-3 h-3" /> {selectedCharacter.name}
+                                    </span>
+                                </div>
                             </div>
-                        </div>
-                        <p className="text-xs text-muted-foreground mt-2 text-center opacity-0 group-hover:opacity-100 transition-opacity">
-                            Click to change character
-                        </p>
-                    </button>
-
-                    {/* Back Button */}
-                    <Button variant="ghost" onClick={prevStep} className="w-full btn-glass">
-                        <svg
-                            className="w-4 h-4 mr-2"
-                            fill="none"
-                            viewBox="0 0 24 24"
-                            stroke="currentColor"
-                        >
-                            <path
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                strokeWidth={2}
-                                d="M11 17l-5-5m0 0l5-5m-5 5h12"
-                            />
-                        </svg>
-                        Back
-                    </Button>
+                        </CardContent>
+                    </Card>
                 </div>
 
-                {/* Column 2: Form Inputs */}
-                <div className="lg:col-span-5 space-y-4">
-                    {/* AI Scene Builder */}
-                    <div className="glass-card p-5 border border-primary/20">
-                        <button
-                            onClick={() => setShowSceneBuilder(!showSceneBuilder)}
-                            className="w-full flex items-center justify-between text-left group"
-                        >
-                            <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
-                                <Sparkles className="w-4 h-4 text-primary animate-pulse" />
-                                <span className="gradient-text">AI Scene Builder</span>
-                            </h3>
-                            <ChevronDown className={`w-4 h-4 text-muted-foreground transition-transform duration-200 ${showSceneBuilder ? 'rotate-180' : ''}`} />
-                        </button>
-
-                        <div className={`grid transition-all duration-300 ease-in-out ${showSceneBuilder ? 'grid-rows-[1fr] opacity-100 mt-4' : 'grid-rows-[0fr] opacity-0'}`}>
-                            <div className="overflow-hidden">
-                                {canUseProBuilder && (
-                                    <div className="flex justify-center mb-3">
-                                        <div
-                                            className="flex items-center gap-2 bg-amber-500/10 border border-amber-500/20 px-3 py-1 rounded-full cursor-pointer hover:bg-amber-500/20 transition-colors"
-                                            onClick={() => setUseProBuilder(!useProBuilder)}
-                                        >
-                                            <span className="text-xs font-bold text-amber-600 dark:text-amber-400 uppercase tracking-wider">
-                                                Hyper-Realism
-                                            </span>
-                                            <div className={`w-8 h-4 rounded-full p-0.5 transition-colors ${useProBuilder ? 'bg-amber-500' : 'bg-muted'}`}>
-                                                <div className={`w-3 h-3 bg-white rounded-full shadow-sm transition-transform ${useProBuilder ? 'translate-x-4' : 'translate-x-0'}`} />
-                                            </div>
-                                        </div>
+                {/* Middle Column: Config */}
+                <div className="lg:col-span-5 space-y-6">
+                    {/* AI Builder */}
+                    <div className="glass p-1 rounded-2xl bg-gradient-to-br from-cyan-500/10 to-blue-500/10">
+                        <div className="bg-background/50 backdrop-blur-xl rounded-xl overflow-hidden">
+                            <button
+                                onClick={() => setShowSceneBuilder(!showSceneBuilder)}
+                                className="w-full px-5 py-4 flex items-center justify-between hover:bg-white/5 transition-colors"
+                            >
+                                <div className="flex items-center gap-3">
+                                    <div className="p-2 rounded-lg bg-gradient-to-br from-cyan-500 to-blue-500 text-white shadow-lg shadow-cyan-500/20">
+                                        <Wand2 className="w-4 h-4" />
                                     </div>
-                                )}
-
-                                <p className="text-xs text-muted-foreground mb-3 text-center">
-                                    Describe your image idea and let AI create the perfect scene configuration.
-                                </p>
-                                <div className="space-y-3">
-                                    <Textarea
-                                        value={aiPrompt}
-                                        onChange={(e) => setAiPrompt(e.target.value)}
-                                        placeholder="E.g., A cyberpunk street food vendor serving neon noodles in rain..."
-                                        className="glass-input min-h-[80px] text-sm"
-                                        disabled={isGeneratingScene}
-                                    />
-                                    <div className="flex justify-end">
-                                        <Button
-                                            onClick={handleGenerateScene}
-                                            disabled={!aiPrompt.trim() || isGeneratingScene}
-                                            size="sm"
-                                            className="bg-primary/20 hover:bg-primary/30 text-primary border border-primary/20"
-                                        >
-                                            {isGeneratingScene ? (
-                                                <>
-                                                    <Loader2 className="w-3 h-3 mr-2 animate-spin" />
-                                                    Designing...
-                                                </>
-                                            ) : (
-                                                <>
-                                                    <Wand2 className="w-3 h-3 mr-2" />
-                                                    Auto-Fill Scene
-                                                </>
-                                            )}
-                                        </Button>
+                                    <div className="text-left">
+                                        <h3 className="font-semibold text-sm">AI Scene Builder</h3>
+                                        <p className="text-xs text-muted-foreground">Auto-generate image description</p>
                                     </div>
                                 </div>
-                            </div>
+                                {showSceneBuilder ? <ChevronUp className="w-4 h-4 text-muted-foreground" /> : <ChevronDown className="w-4 h-4 text-muted-foreground" />}
+                            </button>
+
+                            {showSceneBuilder && (
+                                <div className="px-5 pb-5 pt-2 space-y-4 animate-in slide-in-from-top-2 duration-200">
+                                    {canUseProBuilder && (
+                                        <div className="flex justify-center">
+                                            <button
+                                                onClick={() => setUseProBuilder(!useProBuilder)}
+                                                className={`text-xs px-3 py-1 rounded-full border transition-all ${useProBuilder
+                                                    ? 'bg-amber-500/10 border-amber-500/30 text-amber-500'
+                                                    : 'bg-muted border-border text-muted-foreground'}`}
+                                            >
+                                                {useProBuilder ? '🔥 Hyper-Realism Active' : 'Enable Hyper-Realism'}
+                                            </button>
+                                        </div>
+                                    )}
+
+                                    <div className="relative">
+                                        <Textarea
+                                            value={aiPrompt}
+                                            onChange={(e) => setAiPrompt(e.target.value)}
+                                            placeholder="Describe your image idea..."
+                                            className="min-h-[100px] resize-none pr-10 glass-input"
+                                        />
+                                        <div className="absolute bottom-2 right-2">
+                                            <Button
+                                                size="sm"
+                                                onClick={handleGenerateScene}
+                                                disabled={!aiPrompt.trim() || isGeneratingScene}
+                                                className="h-8 text-xs bg-cyan-500/10 text-cyan-500 hover:bg-cyan-500/20 border-cyan-500/20"
+                                            >
+                                                {isGeneratingScene ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : <Sparkles className="w-3 h-3 mr-1" />}
+                                                Generate
+                                            </Button>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     </div>
 
-                    <div className="glass-card p-5">
-                        <h3 className="text-sm font-semibold text-foreground mb-4 flex items-center gap-2">
-                            🖼️ Image Configuration
+                    {/* Form */}
+                    <Card className="glass-card border-none space-y-4 p-6">
+                        <h3 className="text-sm font-semibold text-foreground flex items-center gap-2 mb-4">
+                            <ImageIcon className="w-4 h-4" /> Parameters
                         </h3>
 
                         <div className="space-y-4">
-                            {/* Escena */}
                             <div className="space-y-1.5">
-                                <Label htmlFor="escena" className="text-xs">
-                                    Escena <span className="text-destructive">*</span>
+                                <Label className="text-xs">
+                                    Scene Description <span className="text-destructive">*</span>
                                 </Label>
                                 <Textarea
-                                    id="escena"
-                                    value={escena}
-                                    onChange={(e) => setEscena(e.target.value)}
-                                    placeholder="Describe the scene setting, lighting, atmosphere..."
-                                    className="glass-input min-h-[80px] text-sm"
-                                    disabled={isGenerating}
+                                    value={escena} onChange={e => setEscena(e.target.value)}
+                                    placeholder="Environment, lighting, atmosphere..."
+                                    className="glass-input h-20 text-sm"
                                 />
                             </div>
 
-                            {/* Fondo */}
                             <div className="space-y-1.5">
-                                <Label htmlFor="fondo" className="text-xs">
-                                    Fondo <span className="text-muted-foreground">(opcional)</span>
+                                <Label className="text-xs">
+                                    Action / Pose <span className="text-destructive">*</span>
                                 </Label>
+                                <Textarea
+                                    value={accion} onChange={e => setAccion(e.target.value)}
+                                    placeholder="What is the character doing?"
+                                    className="glass-input h-16 text-sm"
+                                />
+                            </div>
+
+                            <div className="space-y-1.5">
+                                <Label className="text-xs">Background (Optional)</Label>
                                 <Input
-                                    id="fondo"
-                                    value={fondo}
-                                    onChange={(e) => setFondo(e.target.value)}
-                                    placeholder="Background: sky, city, forest..."
-                                    className="glass-input text-sm"
-                                    disabled={isGenerating}
+                                    value={fondo} onChange={e => setFondo(e.target.value)}
+                                    placeholder="Specific background details"
+                                    className="glass-input h-9 text-sm"
                                 />
                             </div>
 
-                            {/* Acción */}
-                            <div className="space-y-1.5">
-                                <Label htmlFor="accion" className="text-xs">
-                                    Acción / Pose <span className="text-destructive">*</span>
-                                </Label>
-                                <Textarea
-                                    id="accion"
-                                    value={accion}
-                                    onChange={(e) => setAccion(e.target.value)}
-                                    placeholder="What is the character doing? Their pose, expression..."
-                                    className="glass-input min-h-[80px] text-sm"
-                                    disabled={isGenerating}
-                                />
-                            </div>
-
-                            {/* Aspect Ratio */}
-                            <div className="space-y-1.5">
+                            <div className="space-y-3 pt-2">
                                 <Label className="text-xs">Aspect Ratio</Label>
                                 <div className="flex gap-2 flex-wrap">
-                                    {aspectRatioOptions.map((option) => (
+                                    {aspectRatioOptions.map(opt => (
                                         <button
-                                            key={option.value}
-                                            onClick={() => setAspectRatio(option.value)}
-                                            disabled={isGenerating}
-                                            className={`py-2 px-4 rounded-xl text-sm font-medium transition-all duration-200 ${aspectRatio === option.value
-                                                ? 'bg-gradient-to-br from-cyan-500 to-blue-500 text-white'
-                                                : 'glass hover:bg-primary/10'
-                                                }`}
+                                            key={opt.value}
+                                            onClick={() => setAspectRatio(opt.value)}
+                                            className={`flex-1 min-w-[60px] py-2 rounded-xl text-xs font-medium transition-all ${aspectRatio === opt.value ? 'bg-cyan-500 text-white shadow-lg shadow-cyan-500/20' : 'bg-muted/50 hover:bg-muted text-muted-foreground'}`}
                                         >
-                                            {option.label}
+                                            {opt.label}
                                         </button>
                                     ))}
                                 </div>
                             </div>
                         </div>
 
-                        {/* Error */}
-                        {error && (
-                            <div className="mt-4">
-                                <ErrorMessage message={error} onDismiss={() => setError(null)} />
-                            </div>
-                        )}
-
-                        {/* Generate Button */}
                         <Button
                             onClick={handleGenerate}
                             disabled={!isFormValid || isGenerating}
-                            className="w-full bg-gradient-to-br from-cyan-500 to-blue-500 hover:from-cyan-600 hover:to-blue-600 py-5 mt-4"
+                            className="w-full mt-4 bg-gradient-to-br from-cyan-500 to-blue-500 py-6 text-base shadow-xl shadow-cyan-500/20 hover:scale-[1.02] transition-transform"
                         >
                             {isGenerating ? (
                                 <>
                                     <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                                    {progressMessage || 'Generating...'}
+                                    Generating...
                                 </>
                             ) : (
                                 <>
@@ -510,116 +398,90 @@ export function Step3_ImageGeneration() {
                                 </>
                             )}
                         </Button>
-
-                        {/* Status Text */}
-                        <p className="text-center text-xs text-muted-foreground mt-2">
-                            {isFormValid ? '✓ Ready to generate' : '• Fill in required fields'}
-                        </p>
-                    </div>
+                    </Card>
                 </div>
 
-                {/* Column 3: Image Preview & Cost */}
-                <div className="lg:col-span-4 space-y-4">
-                    {/* Cost Estimator */}
-                    <div className="glass-card p-4">
-                        <h3 className="text-sm font-semibold text-foreground mb-3 flex items-center gap-2">
-                            <DollarSign className="w-4 h-4" />
-                            Cost Estimate
-                        </h3>
-                        <div className="space-y-2">
-                            <div className="flex items-center justify-between text-sm">
-                                <span className="text-muted-foreground">Per Image</span>
-                                <span className="font-medium text-foreground">$0.02 USD</span>
-                            </div>
-                            <div className="border-t border-border pt-2 mt-2">
-                                <div className="flex items-center justify-between">
-                                    <span className="text-muted-foreground text-sm">Est. Cost (USD)</span>
-                                    <span className="font-semibold text-foreground">
-                                        ${estimatedCostUSD.toFixed(2)}
-                                    </span>
-                                </div>
-                                <div className="flex items-center justify-between mt-1">
-                                    <span className="text-muted-foreground text-sm">Est. Cost (MXN)</span>
-                                    <span className="font-bold text-lg gradient-text">
-                                        ${estimatedCostMXN.toFixed(2)}
-                                    </span>
-                                </div>
-                            </div>
+                {/* Right Column: Preview */}
+                <div className="lg:col-span-4 space-y-6">
+                    <Card className="glass-card border-none p-5">
+                        <div className="flex items-center justify-between mb-4">
+                            <h3 className="text-sm font-semibold flex items-center gap-2"><DollarSign className="w-4 h-4" /> Cost Estimate</h3>
                         </div>
-                    </div>
+                        <div className="flex items-end justify-between border-t border-border/50 pt-3">
+                            <div className="space-y-0.5">
+                                <p className="text-xs text-muted-foreground">Est. Cost (MXN)</p>
+                                <p className="text-2xl font-bold gradient-text">${estimatedCostMXN.toFixed(2)}</p>
+                            </div>
+                            <p className="text-sm text-muted-foreground mb-1">${estimatedCostUSD.toFixed(3)} USD</p>
+                        </div>
+                    </Card>
 
-                    {/* Image Preview */}
-                    <div className="glass-card p-4">
-                        <h3 className="text-sm font-semibold text-foreground mb-3 flex items-center gap-2">
-                            <ImageIcon className="w-4 h-4" />
-                            Image Preview
-                        </h3>
+                    <Card className="glass-card border-none p-5 flex flex-col h-fit min-h-[300px]">
+                        <h3 className="text-sm font-semibold mb-4 flex items-center gap-2"><ImageIcon className="w-4 h-4" /> Preview</h3>
 
-                        {generatedImage ? (
-                            <div className="space-y-3">
+                        <div className="flex-1 rounded-xl bg-muted/20 border-2 border-dashed border-muted flex items-center justify-center relative overflow-hidden group min-h-[250px]">
+                            {generatedImage ? (
                                 <div
-                                    className="rounded-xl overflow-hidden bg-muted/20 cursor-pointer group relative"
+                                    className="relative w-full h-full cursor-pointer"
                                     onClick={() => setIsPreviewOpen(true)}
                                 >
                                     <img
                                         src={base64ToDataUrl(generatedImage.base64, generatedImage.mimeType)}
                                         alt="Generated"
-                                        className="w-full object-contain transition-transform group-hover:scale-[1.02]"
+                                        className="w-full h-full object-contain"
                                     />
-                                    {/* Hover overlay */}
-                                    <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors flex items-center justify-center">
-                                        <span className="text-white opacity-0 group-hover:opacity-100 transition-opacity text-sm font-medium">
-                                            Click to view fullscreen
-                                        </span>
+                                    <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                        <p className="text-white text-sm font-medium">Click to Expand</p>
                                     </div>
                                 </div>
-                                <div className="p-3 rounded-xl bg-green-500/10 border border-green-500/30">
-                                    <p className="text-xs text-green-600 dark:text-green-400 text-center">
-                                        ✓ Image generated • Cost: <span className="font-bold">${estimatedCostMXN.toFixed(2)} MXN</span>
-                                    </p>
-                                </div>
-                                <div className="flex gap-2">
-                                    <Button onClick={handleDownload} className="flex-1 bg-gradient-to-br from-cyan-500 to-blue-500 py-3">
-                                        <Download className="w-4 h-4 mr-2" />
-                                        Download
-                                    </Button>
-                                    <Button onClick={handleStartNew} variant="ghost" className="btn-glass">
-                                        <RefreshCw className="w-4 h-4" />
-                                    </Button>
-                                </div>
-                            </div>
-                        ) : (
-                            <div className="rounded-xl bg-muted/10 border-2 border-dashed border-muted-foreground/20 aspect-square flex items-center justify-center">
-                                <div className="text-center p-4">
+                            ) : (
+                                <div className="text-center p-6">
                                     {isGenerating ? (
-                                        <>
-                                            <Loader2 className="w-10 h-10 animate-spin text-primary mx-auto mb-3" />
-                                            <p className="text-sm text-muted-foreground">
-                                                {progressMessage || 'Generating...'}
-                                            </p>
-                                        </>
+                                        <div className="space-y-3">
+                                            <Loader2 className="w-10 h-10 animate-spin text-cyan-500 mx-auto" />
+                                            <p className="text-sm text-foreground font-medium animate-pulse">{progressMessage || "Creating art..."}</p>
+                                        </div>
                                     ) : (
-                                        <>
-                                            <ImageIcon className="w-10 h-10 text-muted-foreground/40 mx-auto mb-3" />
-                                            <p className="text-sm text-muted-foreground">
-                                                Image preview will appear here
-                                            </p>
-                                        </>
+                                        <div className="space-y-2">
+                                            <ImageIcon className="w-10 h-10 text-muted-foreground/40 mx-auto" />
+                                            <p className="text-sm text-muted-foreground">Image preview</p>
+                                        </div>
                                     )}
                                 </div>
+                            )}
+                        </div>
+
+                        {generatedImage && (
+                            <div className="mt-4 grid grid-cols-2 gap-3">
+                                <Button onClick={handleDownload} variant="outline" className="w-full">
+                                    <Download className="w-4 h-4 mr-2" /> Save
+                                </Button>
+                                <Button onClick={handleStartNew} variant="ghost" className="w-full">
+                                    <RefreshCw className="w-4 h-4 mr-2" /> New
+                                </Button>
                             </div>
                         )}
-                    </div>
+                    </Card>
                 </div>
             </div>
 
-            {/* Image Generating Modal */}
-            <ImageGeneratingModal
-                isOpen={isGenerating}
-                progressMessage={progressMessage}
+            <ImageGeneratingModal isOpen={isGenerating} progressMessage={progressMessage} />
+
+            {/* Mobile Actions */}
+            <MobileStyleCharacterBar
+                style={selectedStyle}
+                character={selectedCharacter}
+                onChangeStyle={() => setShowStyleSelector(true)}
+                onChangeCharacter={() => setShowCharacterSelector(true)}
             />
 
-            {/* Fullscreen Image Preview Modal */}
+            <MobileCostBar
+                cost={estimatedCostMXN}
+                isValid={isFormValid}
+                onGenerate={handleGenerate}
+                isGenerating={isGenerating}
+            />
+
             {generatedImage && (
                 <ImagePreviewModal
                     isOpen={isPreviewOpen}
@@ -629,21 +491,8 @@ export function Step3_ImageGeneration() {
                 />
             )}
 
-            {/* Style Selector Modal */}
-            <StyleSelectorModal
-                open={showStyleSelector}
-                onClose={() => setShowStyleSelector(false)}
-                onSelect={handleStyleSwap}
-                currentStyleId={selectedStyle?.id}
-            />
-
-            {/* Character Selector Modal */}
-            <CharacterSelectorModal
-                open={showCharacterSelector}
-                onClose={() => setShowCharacterSelector(false)}
-                onSelect={handleCharacterSwap}
-                currentCharacterId={selectedCharacter?.id}
-            />
+            <StyleSelectorModal open={showStyleSelector} onClose={() => setShowStyleSelector(false)} onSelect={handleStyleSwap} currentStyleId={selectedStyle?.id} />
+            <CharacterSelectorModal open={showCharacterSelector} onClose={() => setShowCharacterSelector(false)} onSelect={handleCharacterSwap} currentCharacterId={selectedCharacter?.id} />
         </div>
     );
 }

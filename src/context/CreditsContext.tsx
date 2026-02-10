@@ -1,6 +1,8 @@
-import { createContext, useContext, useEffect, useState, useCallback, type ReactNode } from 'react';
+import { createContext, useContext, useEffect, useState, useCallback, useRef, type ReactNode } from 'react';
 import { creditsService, type CreditsBalance } from '../services/api';
 import { useAuth } from './AuthContext';
+import { supabase, isSupabaseConfigured } from '@/lib/supabase';
+import type { RealtimeChannel } from '@supabase/supabase-js';
 
 // Credits state interface
 interface CreditsState {
@@ -36,7 +38,8 @@ const CreditsContext = createContext<CreditsContextType | null>(null);
 // Provider component
 export function CreditsProvider({ children }: { children: ReactNode }) {
     const [state, setState] = useState<CreditsState>(initialState);
-    const { isAuthenticated } = useAuth();
+    const { isAuthenticated, user } = useAuth();
+    const channelRef = useRef<RealtimeChannel | null>(null);
 
     // Fetch balance when authenticated
     const fetchBalance = useCallback(async () => {
@@ -72,6 +75,106 @@ export function CreditsProvider({ children }: { children: ReactNode }) {
     useEffect(() => {
         fetchBalance();
     }, [fetchBalance]);
+
+    // Set up realtime subscription for credit changes
+    useEffect(() => {
+        if (!isAuthenticated || !user?.id || !isSupabaseConfigured()) {
+            console.log('💰 Realtime skipped:', {
+                isAuthenticated,
+                hasUserId: !!user?.id,
+                isConfigured: isSupabaseConfigured()
+            });
+            return;
+        }
+
+        // Clean up existing subscription
+        if (channelRef.current) {
+            console.log('💰 Removing existing channel');
+            supabase?.removeChannel(channelRef.current);
+            channelRef.current = null;
+        }
+
+        console.log('💰 Setting up realtime subscription for user:', user.id);
+        console.log('💰 Using filter: user_id=eq.' + user.id);
+
+        // Create new subscription
+        const channel = supabase
+            ?.channel(`credits:${user.id}`)
+            .on(
+                'postgres_changes',
+                {
+                    event: '*', // Listen to all events (INSERT, UPDATE, DELETE)
+                    schema: 'public',
+                    table: 'credits',
+                    filter: `user_id=eq.${user.id}`,
+                },
+                (payload) => {
+                    console.log('💰 Credit change detected!', payload);
+                    console.log('💰 Event type:', payload.eventType);
+                    console.log('💰 Full payload:', JSON.stringify(payload, null, 2));
+
+                    // Update balance based on the payload
+                    if (payload.eventType === 'UPDATE' || payload.eventType === 'INSERT') {
+                        const newRecord = payload.new as any;
+
+                        console.log('💰 New record:', newRecord);
+                        console.log('💰 balance_mxn value:', newRecord.balance_mxn);
+                        console.log('💰 balance_mxn type:', typeof newRecord.balance_mxn);
+
+                        const newBalance = typeof newRecord.balance_mxn === 'string'
+                            ? parseFloat(newRecord.balance_mxn)
+                            : Number(newRecord.balance_mxn);
+
+                        console.log('💰 Parsed balance:', newBalance);
+                        console.log('💰 Previous balance:', state.balance);
+
+                        setState(prev => ({
+                            ...prev,
+                            balance: newBalance,
+                            currency: newRecord.currency || 'MXN',
+                            isLowBalance: newBalance < LOW_BALANCE_THRESHOLD,
+                        }));
+
+                        console.log('💰 Balance updated to:', newBalance);
+                    } else if (payload.eventType === 'DELETE') {
+                        console.log('💰 Credits deleted, resetting to 0');
+                        setState(prev => ({
+                            ...prev,
+                            balance: 0,
+                            isLowBalance: true,
+                        }));
+                    }
+                }
+            )
+            .subscribe((status, err) => {
+                console.log('💰 Realtime subscription status:', status);
+                if (err) {
+                    console.error('💰 Subscription error:', err);
+                }
+                if (status === 'SUBSCRIBED') {
+                    console.log('✅ Successfully subscribed to credits realtime!');
+                } else if (status === 'CHANNEL_ERROR') {
+                    console.error('❌ Channel error - check RLS policies and realtime settings');
+                } else if (status === 'CLOSED') {
+                    console.warn('⚠️ Channel closed');
+                }
+            });
+
+        if (!channel) {
+            console.error('❌ Failed to create Supabase channel');
+        }
+
+        channelRef.current = channel || null;
+
+        // Cleanup on unmount or when user changes
+        return () => {
+            console.log('💰 Cleaning up realtime subscription');
+            if (channelRef.current) {
+                supabase?.removeChannel(channelRef.current);
+                channelRef.current = null;
+            }
+        };
+    }, [isAuthenticated, user?.id]);
 
     // Refresh balance (exposed for after generation)
     const refreshBalance = useCallback(async () => {

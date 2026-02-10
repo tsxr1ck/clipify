@@ -6,6 +6,7 @@ import { stylesService, type Style } from '@/services/api';
 import { LibraryCard, CreateNewCard } from '@/components/shared/LibraryCard';
 import { StyleCreator } from '@/components/library/StyleCreator';
 
+
 export function Step1_StyleSelection() {
     const { state, setSelectedStyle, nextStep, prevStep } = useApplication();
     const [styles, setStyles] = useState<Style[]>([]);
@@ -21,7 +22,6 @@ export function Step1_StyleSelection() {
                 const response = await stylesService.list({ limit: 100 });
                 setStyles(response.styles);
             } catch (err) {
-                // Filter out empty errors (from auth redirects)
                 const message = err instanceof Error ? err.message : 'Failed to load styles';
                 if (message) {
                     setError(message);
@@ -72,40 +72,36 @@ export function Step1_StyleSelection() {
 
     if (isLoading) {
         return (
-            <div className="w-full max-w-5xl mx-auto flex items-center justify-center py-20">
-                <Loader2 className="w-8 h-8 animate-spin text-primary" />
+            <div className="w-full h-96 flex items-center justify-center">
+                <Loader2 className="w-10 h-10 animate-spin text-primary" />
             </div>
         );
     }
 
     return (
-        <div className="w-full max-w-5xl mx-auto animate-fadeIn">
+        <div className="w-full max-w-6xl mx-auto animate-scaleIn">
             {/* Header */}
-            <div className="text-center mb-8">
-                <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-purple-500 to-blue-500 flex items-center justify-center">
-                    <Palette className="w-8 h-8 text-white" />
-                </div>
-                <h2 className="text-2xl font-bold gradient-text">Select a Visual Style</h2>
-                <p className="text-muted-foreground mt-2">
-                    Choose from your saved styles or create a new one
+            <div className="text-center mb-10">
+                <h2 className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-foreground to-foreground/70">
+                    Choose Your Visual Style
+                </h2>
+                <p className="text-muted-foreground mt-2 text-lg">
+                    Select a style for your video or create a new one from an image
                 </p>
             </div>
 
             {/* Error Message */}
             {error && (
-                <div className="mb-4 p-3 rounded-lg bg-red-500/20 border border-red-500/50 text-red-200 text-sm">
-                    {error}
-                    <button
-                        onClick={() => setError(null)}
-                        className="float-right text-red-300 hover:text-white"
-                    >
+                <div className="mb-6 p-4 rounded-xl bg-destructive/10 border border-destructive/20 text-destructive flex justify-between items-center">
+                    <span>{error}</span>
+                    <Button variant="ghost" size="sm" onClick={() => setError(null)} className="h-auto p-1 text-destructive hover:bg-destructive/10">
                         ✕
-                    </button>
+                    </Button>
                 </div>
             )}
 
             {/* Styles Grid */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 mb-8">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 mb-12">
                 {/* Create New Card */}
                 <CreateNewCard
                     label="Create New Style"
@@ -131,57 +127,50 @@ export function Step1_StyleSelection() {
 
             {/* Empty State */}
             {styles.length === 0 && (
-                <div className="text-center py-12 glass-card">
-                    <Palette className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
-                    <h3 className="text-lg font-semibold text-foreground">No styles yet</h3>
-                    <p className="text-muted-foreground mt-1">
-                        Create your first style by uploading a reference image
+                <div className="text-center py-20 glass rounded-3xl mb-8">
+                    <div className="w-16 h-16 mx-auto bg-muted rounded-full flex items-center justify-center mb-4">
+                        <Palette className="w-8 h-8 text-muted-foreground" />
+                    </div>
+                    <h3 className="text-xl font-semibold text-foreground">No styles yet</h3>
+                    <p className="text-muted-foreground mt-2 max-w-md mx-auto">
+                        Your library is empty. Create your first style by uploading a reference image to get started.
                     </p>
                 </div>
             )}
 
-            {/* Delete Confirmation */}
-            {deleteConfirmId && (
-                <div className="fixed bottom-24 left-1/2 -translate-x-1/2 z-50 glass-card px-4 py-3 flex items-center gap-4">
-                    <span className="text-sm">Click delete again to confirm</span>
+            {/* Navigation Bar */}
+            <div className="fixed bottom-0 left-0 lg:left-72 right-0 p-4 glass border-t border-border/50 z-40">
+                <div className="max-w-6xl mx-auto flex items-center justify-between">
                     <Button
                         variant="ghost"
-                        size="sm"
-                        onClick={() => setDeleteConfirmId(null)}
+                        onClick={prevStep}
+                        className="text-muted-foreground hover:text-foreground"
                     >
-                        Cancel
+                        Back
                     </Button>
+
+                    <div className="flex items-center gap-4">
+                        <div className="hidden sm:block text-sm text-muted-foreground">
+                            {state.selectedStyleId
+                                ? <span className="text-primary font-medium">1 Style Selected</span>
+                                : 'Select a style to continue'}
+                        </div>
+                        <Button
+                            onClick={handleContinue}
+                            disabled={!state.selectedStyleId}
+                            variant="gradient"
+                            size="lg"
+                            className="px-8 rounded-full shadow-lg shadow-primary/25 disabled:shadow-none"
+                        >
+                            Continue
+                            <ArrowRight className="w-4 h-4 ml-2" />
+                        </Button>
+                    </div>
                 </div>
-            )}
-
-            {/* Navigation */}
-            <div className="flex items-center justify-between glass-card p-4">
-                <Button
-                    variant="ghost"
-                    onClick={prevStep}
-                    className="btn-glass"
-                >
-                    <svg className="w-5 h-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 17l-5-5m0 0l5-5m-5 5h12" />
-                    </svg>
-                    Back
-                </Button>
-
-                <div className="text-sm text-muted-foreground">
-                    {state.selectedStyleId
-                        ? `Selected: ${styles.find((s) => s.id === state.selectedStyleId)?.name}`
-                        : 'Select a style to continue'}
-                </div>
-
-                <Button
-                    onClick={handleContinue}
-                    disabled={!state.selectedStyleId}
-                    className="btn-gradient"
-                >
-                    Continue
-                    <ArrowRight className="w-5 h-5 ml-2" />
-                </Button>
             </div>
+
+            {/* Spacer for fixed footer */}
+            <div className="h-24" />
 
             {/* Style Creator Modal */}
             <StyleCreator
@@ -189,6 +178,29 @@ export function Step1_StyleSelection() {
                 onClose={() => setIsCreatorOpen(false)}
                 onStyleCreated={handleStyleCreated}
             />
+
+            {/* Delete Confirmation Toast/Dialog Replacement */}
+            {deleteConfirmId && (
+                <div className="fixed bottom-24 left-1/2 -translate-x-1/2 z-50 glass px-6 py-4 rounded-full shadow-xl flex items-center gap-4 animate-float-up">
+                    <span className="text-sm font-medium">Are you sure you want to delete this style?</span>
+                    <Button
+                        variant="destructive"
+                        size="sm"
+                        onClick={() => handleDeleteStyle(deleteConfirmId)}
+                        className="rounded-full h-8"
+                    >
+                        Delete
+                    </Button>
+                    <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setDeleteConfirmId(null)}
+                        className="rounded-full h-8"
+                    >
+                        Cancel
+                    </Button>
+                </div>
+            )}
         </div>
     );
 }

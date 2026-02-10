@@ -126,7 +126,6 @@ export const aiController = {
      * Generate image
      */
     async generateImage(req: AuthRequest, res: Response): Promise<void> {
-        let generationId: string | undefined;
         try {
             const userId = req.user!.userId;
             const { prompt, aspectRatio, imageBase64, mimeType } = generateImageSchema.parse(req.body);
@@ -139,45 +138,15 @@ export const aiController = {
                 return;
             }
 
-            // 2. Start Generation Record
-            const generation = await generationsService.create({
-                userId,
-                title: 'Image Generation',
-                generationType: 'image',
-                prompt: prompt,
-                folder: 'images',
-                aspectRatio,
-                costMxn: Number(price.userPriceMXN),
-                costUsd: Number(price.costUSD)
-            });
-            generationId = generation.id;
-            const startTime = Date.now();
-
-            // 3. Perform operation
+            // 2. Perform operation
             const generatedImageBase64 = await aiService.generateImage(prompt, aspectRatio, imageBase64, mimeType);
 
-            // 4. Complete Generation Record
-            // Note: We are NOT uploading the image here to save latency/storage complexity in this synchronous flow.
-            // Expected flow is client uploads if they want to keep it.
-            // We store a placeholder or maybe we should upload?
-            // For now, consistent with previous behavior: return base64.
-            await generationsService.complete(generationId, {
-                outputUrl: 'returned-as-base64',
-                mimeType: 'image/png',
-                costMxn: Number(price.userPriceMXN),
-                costUsd: Number(price.costUSD),
-                generationTimeSeconds: Math.ceil((Date.now() - startTime) / 1000)
-            });
-
-            // 5. Deduct credits
+            // 3. Deduct credits (generation record handled by frontend via generateImageWithLogging)
             await creditsService.deductCredits(userId, price.userPriceMXN, 'Image generation');
 
             res.json({ imageBase64: generatedImageBase64 });
         } catch (error) {
             console.error('Image generation error:', error);
-            if (generationId) {
-                await generationsService.fail(generationId, error instanceof Error ? error.message : 'Unknown error');
-            }
             res.status(500).json({ error: error instanceof Error ? error.message : 'Generation failed' });
         }
     },
@@ -186,7 +155,6 @@ export const aiController = {
      * Generate video
      */
     async generateVideo(req: AuthRequest, res: Response): Promise<void> {
-        let generationId: string | undefined;
         try {
             const userId = req.user!.userId;
             const { prompt, imageBase64, mimeType }: { prompt: string, imageBase64?: string, mimeType?: string } = req.body;
@@ -202,41 +170,15 @@ export const aiController = {
                 return;
             }
 
-            // 2. Start Generation Record
-            const generation = await generationsService.create({
-                userId,
-                title: 'Video Generation',
-                generationType: 'video',
-                prompt: prompt,
-                folder: 'videos',
-                costMxn: Number(price.userPriceMXN),
-                costUsd: Number(price.costUSD)
-            });
-            generationId = generation.id;
-            const startTime = Date.now();
-
-            // 3. Perform operation
+            // 2. Perform operation
             const videoBase64 = await aiService.generateVideo(prompt); // NOTE: generateVideo in aiService currently ignores imageBase64 if not updated
 
-            // 4. Complete Generation Record
-            await generationsService.complete(generationId, {
-                outputUrl: 'returned-as-base64',
-                mimeType: 'video/mp4',
-                costMxn: Number(price.userPriceMXN),
-                costUsd: Number(price.costUSD),
-                generationTimeSeconds: Math.ceil((Date.now() - startTime) / 1000),
-                durationSeconds: duration
-            });
-
-            // 5. Deduct credits
+            // 3. Deduct credits (generation record handled by frontend via generateVideoWithLogging)
             await creditsService.deductCredits(userId, price.userPriceMXN, `Video generation (${duration}s)`);
 
             res.json({ videoBase64 });
         } catch (error) {
             console.error('Video generation error:', error);
-            if (generationId) {
-                await generationsService.fail(generationId, error instanceof Error ? error.message : 'Unknown error');
-            }
             res.status(500).json({ error: error instanceof Error ? error.message : 'Generation failed' });
         }
     },

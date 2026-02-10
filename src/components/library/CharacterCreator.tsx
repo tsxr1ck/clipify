@@ -585,8 +585,8 @@ export function CharacterCreator({
                     {/* Cost Estimate */}
                     <p className="text-center text-xs text-muted-foreground">
                         {creationMode === 'prompt'
-                            ? 'Estimated cost: ~$0.04 per generation'
-                            : 'Estimated cost: ~$0.02 for analysis + ~$0.04 for generation'
+                            ? 'Estimated cost: ~$0.075 USD per generation (Imagen 4.0)'
+                            : 'Estimated cost: ~$0.015 USD analysis + ~$0.075 USD generation'
                         }
                     </p>
                 </div>

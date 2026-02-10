@@ -10,30 +10,27 @@ import {
     Palette,
     User,
     DollarSign,
-    Clock,
     ArrowRightLeft,
     Wand2,
     ChevronDown,
     ChevronUp,
     Film,
     BookOpen,
-    ChevronLeft,
-    ChevronRight,
     Import,
 } from 'lucide-react';
 import { toast } from 'sonner';
-import {
-    Dialog,
-    DialogContent,
-    DialogDescription,
-    DialogFooter,
-    DialogHeader,
-    DialogTitle,
-} from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogHeader,
+    DialogTitle,
+    DialogFooter,
+} from '@/components/ui/dialog';
 import { useApplication } from '@/context/ApplicationContext';
 import { useAuth } from '@/context/AuthContext';
 import { stylesService, charactersService, generateSceneConfig, generateStoryConfig, calculateStoryCost, sceneBuilderProService } from '@/services/api';
@@ -50,8 +47,11 @@ import { ErrorMessage } from '@/components/shared/ErrorMessage';
 import { VideoGeneratingModal } from '@/components/shared/VideoGeneratingModal';
 import { StyleSelectorModal } from '@/components/shared/StyleSelectorModal';
 import { CharacterSelectorModal } from '@/components/shared/CharacterSelectorModal';
+import { MobileStyleCharacterBar } from './MobileStyleCharacterBar';
+import { MobileCostBar } from './MobileCostBar';
 import type { VideoDuration } from '@/types';
 import { PRICING } from '@/config/constants';
+import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 
 type BuilderMode = 'scene' | 'story';
 
@@ -71,7 +71,6 @@ const durationOptions: { value: VideoDuration; label: string }[] = [
     { value: 8, label: '8s' },
 ];
 
-// Pricing constants
 const USD_TO_MXN = 17.5;
 
 export function Step3_VideoGeneration() {
@@ -83,7 +82,7 @@ export function Step3_VideoGeneration() {
     const [selectedStyle, setSelectedStyle] = useState<Style | null>(null);
     const [selectedCharacter, setSelectedCharacter] = useState<Character | null>(null);
 
-    // Modal state for swapping style/character
+    // Modal state for swapping
     const [showStyleSelector, setShowStyleSelector] = useState(false);
     const [showCharacterSelector, setShowCharacterSelector] = useState(false);
     const [veoAvailable, setVeoAvailable] = useState<boolean | null>(null);
@@ -120,12 +119,13 @@ export function Step3_VideoGeneration() {
     const [lastSceneCost, setLastSceneCost] = useState<number | null>(null);
 
     // Story mode state
-    // Story mode state
     const [storySegments, setStorySegments] = useState<StorySegment[]>([]);
     const [storyTitle, setStoryTitle] = useState('');
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const [currentSegmentIndex, setCurrentSegmentIndex] = useState(0);
 
     // Import Story State
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const [showImportModal, setShowImportModal] = useState(false);
     const [importJson, setImportJson] = useState('');
     const [importError, setImportError] = useState<string | null>(null);
@@ -134,7 +134,7 @@ export function Step3_VideoGeneration() {
     const [useProBuilder, setUseProBuilder] = useState(false);
     const canUseProBuilder = user?.id === 'fb430091-ddba-4aa7-82d6-228528124087';
 
-    // Handle route state from /scene-builder navigation
+    // Handle route state
     useEffect(() => {
         const routeState = location.state as LocationState | undefined;
         if (routeState?.generatedScene) {
@@ -147,7 +147,6 @@ export function Step3_VideoGeneration() {
             setMovimiento(scene.movimiento || '');
             setDuration(scene.suggestedDuration);
             setSceneBuilderOpen(false);
-            // Clear the location state to prevent re-filling on refresh
             window.history.replaceState({}, document.title);
         } else if (routeState?.generatedStory) {
             const story = routeState.generatedStory;
@@ -156,7 +155,6 @@ export function Step3_VideoGeneration() {
             setStorySegments(story.segments);
             setCurrentSegmentIndex(0);
             setSceneBuilderOpen(false);
-            // Fill form with first segment
             if (story.segments.length > 0) {
                 const firstSeg = story.segments[0];
                 setEscena(firstSeg.escena);
@@ -171,7 +169,7 @@ export function Step3_VideoGeneration() {
         }
     }, [location.state]);
 
-    // Elapsed time timer during generation
+    // Timer
     useEffect(() => {
         if (!isGenerating) {
             setElapsedTime(0);
@@ -183,11 +181,10 @@ export function Step3_VideoGeneration() {
         return () => clearInterval(interval);
     }, [isGenerating]);
 
-    // Calculate estimated cost
     const estimatedCostMXN = duration * PRICING.VIDEO_PER_SECOND;
     const estimatedCostUSD = estimatedCostMXN / USD_TO_MXN;
 
-    // Load selected style and character from API
+    // Load data
     useEffect(() => {
         async function loadData() {
             try {
@@ -200,7 +197,7 @@ export function Step3_VideoGeneration() {
                     setSelectedCharacter(character);
                 }
             } catch (err) {
-                console.error('Failed to load style/character:', err);
+                console.error('Failed to load data:', err);
             } finally {
                 setIsLoading(false);
             }
@@ -208,7 +205,7 @@ export function Step3_VideoGeneration() {
         loadData();
     }, [state.selectedStyleId, state.selectedCharacterId]);
 
-    // Check Veo access on mount
+    // Check Veo
     useEffect(() => {
         async function checkAccess() {
             const available = await checkVeoAccess();
@@ -218,12 +215,11 @@ export function Step3_VideoGeneration() {
         checkAccess();
     }, []);
 
-    const isFormValid = escena.trim() && accion.trim() && dialogo.trim();
+    const isFormValid = Boolean(escena.trim() && accion.trim() && dialogo.trim());
 
-    // AI Scene Builder handler
+    // Handlers
     const handleGenerateScene = async () => {
         if (!aiPrompt.trim()) return;
-
         setIsGeneratingScene(true);
         setSceneBuilderError(null);
         setLastSceneCost(null);
@@ -233,34 +229,21 @@ export function Step3_VideoGeneration() {
                 ? await sceneBuilderProService.generateSceneConfig(aiPrompt.trim())
                 : await generateSceneConfig(aiPrompt.trim());
 
-            // Fill in the form fields with AI-generated values
             setEscena(result.scene.escena);
-
-            // Handle Pro fields if available
             let fondoText = result.scene.fondo || '';
-            if (result.scene.condicionesFisicas) {
-                fondoText += `\n\n[Physical Conditions]: ${result.scene.condicionesFisicas}`;
-            }
-            if (result.scene.contextoInvisible) {
-                fondoText += `\n[Invisible Context]: ${result.scene.contextoInvisible}`;
-            }
+            if (result.scene.condicionesFisicas) fondoText += `\n\n[Physical]: ${result.scene.condicionesFisicas}`;
+            if (result.scene.contextoInvisible) fondoText += `\n[Context]: ${result.scene.contextoInvisible}`;
             setFondo(fondoText);
-
             setAccion(result.scene.accion);
             setDialogo(result.scene.dialogo);
             setVoiceStyle(result.scene.voiceStyle || '');
-
             let movimientoText = result.scene.movimiento || '';
-            if (result.scene.defectosTecnicos) {
-                movimientoText += `\n[Technical Defects]: ${result.scene.defectosTecnicos}`;
-            }
+            if (result.scene.defectosTecnicos) movimientoText += `\n[Defects]: ${result.scene.defectosTecnicos}`;
             setMovimiento(movimientoText);
-
             setDuration(result.scene.suggestedDuration);
             setLastSceneCost(result.costMXN);
-
-            // Collapse the AI section after successful generation
             setSceneBuilderOpen(false);
+            toast.success('Scene configured successfully!');
         } catch (err) {
             setSceneBuilderError(err instanceof Error ? err.message : 'Failed to generate scene');
         } finally {
@@ -268,10 +251,8 @@ export function Step3_VideoGeneration() {
         }
     };
 
-    // AI Story Builder handler
     const handleGenerateStory = async () => {
         if (!aiPrompt.trim()) return;
-
         setIsGeneratingScene(true);
         setSceneBuilderError(null);
         setLastSceneCost(null);
@@ -282,38 +263,24 @@ export function Step3_VideoGeneration() {
                 ? await sceneBuilderProService.generateStoryConfig(aiPrompt.trim(), segmentCount)
                 : await generateStoryConfig(aiPrompt.trim(), segmentCount);
 
-            // Store story data
             setStoryTitle(result.storyTitle);
             setStorySegments(result.segments);
             setCurrentSegmentIndex(0);
             setLastSceneCost(result.costMXN);
 
-            // Fill form with first segment
             if (result.segments.length > 0) {
                 const firstSeg = result.segments[0];
                 setEscena(firstSeg.escena);
-
                 let fondoText = firstSeg.fondo || '';
-                if (firstSeg.condicionesFisicas) {
-                    fondoText += `\n\n[Physical Conditions]: ${firstSeg.condicionesFisicas}`;
-                }
-                if (firstSeg.contextoInvisible) {
-                    fondoText += `\n[Invisible Context]: ${firstSeg.contextoInvisible}`;
-                }
+                if (firstSeg.condicionesFisicas) fondoText += `\n\n[Physical]: ${firstSeg.condicionesFisicas}`;
                 setFondo(fondoText);
-
                 setAccion(firstSeg.accion);
                 setDialogo(firstSeg.dialogo);
                 setVoiceStyle(firstSeg.voiceStyle || '');
-
-                let movimientoText = firstSeg.movimiento || '';
-                if (firstSeg.defectosTecnicos) {
-                    movimientoText += `\n[Technical Defects]: ${firstSeg.defectosTecnicos}`;
-                }
-                setMovimiento(movimientoText);
-
+                setMovimiento(firstSeg.movimiento || '');
                 setDuration(8);
             }
+            toast.success('Story generated successfully!');
         } catch (err) {
             setSceneBuilderError(err instanceof Error ? err.message : 'Failed to generate story');
         } finally {
@@ -323,19 +290,11 @@ export function Step3_VideoGeneration() {
 
     const handleImportStory = () => {
         if (!importJson.trim()) return;
-
         try {
             const parsed = JSON.parse(importJson);
-
-            // Basic validation
-            if (!parsed.segments || !Array.isArray(parsed.segments)) {
-                throw new Error('Invalid JSON: Missing "segments" array.');
+            if (!parsed.segments || !Array.isArray(parsed.segments) || parsed.segments.length === 0) {
+                throw new Error('Invalid JSON: Segments missing or empty.');
             }
-
-            if (parsed.segments.length === 0) {
-                throw new Error('Invalid JSON: "segments" array is empty.');
-            }
-
             setStoryTitle(parsed.storyTitle || 'Imported Story');
             setStorySegments(parsed.segments);
             setLastSceneCost(parsed.costMXN || null);
@@ -343,29 +302,13 @@ export function Step3_VideoGeneration() {
             setSegmentCount(parsed.segments.length);
             setCurrentSegmentIndex(0);
 
-            // Fill first segment
             const firstSeg = parsed.segments[0];
             setEscena(firstSeg.escena || '');
-
-            let fondoText = firstSeg.fondo || '';
-            if (firstSeg.condicionesFisicas) {
-                fondoText += `\n\n[Physical Conditions]: ${firstSeg.condicionesFisicas}`;
-            }
-            if (firstSeg.contextoInvisible) {
-                fondoText += `\n[Invisible Context]: ${firstSeg.contextoInvisible}`;
-            }
-            setFondo(fondoText);
-
+            setFondo(firstSeg.fondo || '');
             setAccion(firstSeg.accion || '');
             setDialogo(firstSeg.dialogo || '');
             setVoiceStyle(firstSeg.voiceStyle || '');
-
-            let movimientoText = firstSeg.movimiento || '';
-            if (firstSeg.defectosTecnicos) {
-                movimientoText += `\n[Technical Defects]: ${firstSeg.defectosTecnicos}`;
-            }
-            setMovimiento(movimientoText);
-
+            setMovimiento(firstSeg.movimiento || '');
             setDuration(firstSeg.suggestedDuration || 8);
 
             setShowImportModal(false);
@@ -374,15 +317,13 @@ export function Step3_VideoGeneration() {
             setSceneBuilderOpen(false);
             toast.success('Story imported successfully!');
         } catch (err) {
-            console.error('Import failed:', err);
             setImportError(err instanceof Error ? err.message : 'Failed to parse JSON');
-            toast.error('Failed to import story. Please check the JSON format.');
+            toast.error('Failed to import story');
         }
     };
 
     const handleGenerate = async () => {
         if (!selectedStyle || !selectedCharacter || !isFormValid) return;
-
         setIsGenerating(true);
         setError(null);
         setProgressMessage('');
@@ -400,15 +341,14 @@ export function Step3_VideoGeneration() {
                 selectedCharacter.prompt,
                 duration
             );
-            // TODO: Video generation needs base64 image but we now have URL
-            // For now, we need to fetch the image and convert to base64
+
+            // Fetch image as base64
             const imageResponse = await fetch(selectedCharacter.imageUrl);
             const imageBlob = await imageResponse.blob();
             const imageBase64 = await new Promise<string>((resolve) => {
                 const reader = new FileReader();
                 reader.onloadend = () => {
-                    const base64 = (reader.result as string).split(',')[1];
-                    resolve(base64);
+                    resolve((reader.result as string).split(',')[1]);
                 };
                 reader.readAsDataURL(imageBlob);
             });
@@ -421,15 +361,7 @@ export function Step3_VideoGeneration() {
                     styleId: selectedStyle.id,
                     characterId: selectedCharacter.id,
                     title: `Video: ${selectedCharacter.name} - ${accion.substring(0, 30)}`,
-                    sceneConfig: {
-                        escena,
-                        fondo,
-                        accion,
-                        dialogo,
-                        voiceStyle,
-                        movimiento,
-                        duration
-                    }
+                    sceneConfig: { escena, fondo, accion, dialogo, voiceStyle, movimiento, duration }
                 },
                 (message) => setProgressMessage(message)
             );
@@ -440,33 +372,22 @@ export function Step3_VideoGeneration() {
                 costMXN: result.costMXN,
             });
 
-            // Play success sound
-            const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3'); // Smooth chime
+            // Use audio safely
+            const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
             audio.volume = 0.5;
-            audio.play().catch(e => console.log('Audio play failed (user interaction needed first):', e));
+            audio.play().catch(() => { }); // Ignore interaction error
 
-            setProgressMessage('');
-            setProgressMessage('');
             toast.success('Video generated successfully!');
         } catch (err) {
-            const errorMessage = err instanceof Error ? err.message : 'Failed to generate video';
-            setError(errorMessage);
-            setProgressMessage('');
-
-            // Special handling for high load error (code 8)
-            // Using a simple heuristic or if the error object lets us check code, 
-            // but here we likely have the message string.
-            if (errorMessage.toLowerCase().includes('high load') || errorMessage.includes('code":8')) {
-                // Friendly error message for Code 8 (Resource Exhausted)
-                toast.error(
-                    'Veo is currently experiencing very high demand! 🌟 Please wait a moment and try again. (Video Error Code: 8)',
-                    {
-                        duration: 6000,
-                        icon: <Sparkles className="w-5 h-5 text-purple-500" />,
-                    }
-                );
+            const msg = err instanceof Error ? err.message : 'Failed to generate video';
+            setError(msg);
+            if (msg.toLowerCase().includes('high load') || msg.includes('code":8')) {
+                toast.error('Veo is constantly high demand! Please try again later.', {
+                    icon: <Sparkles className="w-5 h-5 text-purple-500" />,
+                    duration: 6000
+                });
             } else {
-                toast.error(errorMessage);
+                toast.error(msg);
             }
         } finally {
             setIsGenerating(false);
@@ -475,7 +396,6 @@ export function Step3_VideoGeneration() {
 
     const handleDownload = () => {
         if (!generatedVideo) return;
-
         const link = document.createElement('a');
         link.href = base64ToDataUrl(generatedVideo.base64, generatedVideo.mimeType);
         link.download = `clipify-video-${Date.now()}.mp4`;
@@ -484,8 +404,6 @@ export function Step3_VideoGeneration() {
 
     const handleDownloadCharacter = () => {
         if (!selectedCharacter) return;
-
-        // Create a link to download the image from URL
         const link = document.createElement('a');
         link.href = selectedCharacter.imageUrl;
         link.download = `${selectedCharacter.name.replace(/\s+/g, '-')}.png`;
@@ -494,590 +412,274 @@ export function Step3_VideoGeneration() {
     };
 
     const handleStartNew = () => {
-        setEscena('');
-        setFondo('');
-        setAccion('');
-        setDialogo('');
-        setVoiceStyle('');
-        setMovimiento('');
-        setDuration(4);
-        setGeneratedVideo(null);
-        setError(null);
+        setEscena(''); setFondo(''); setAccion(''); setDialogo(''); setVoiceStyle(''); setMovimiento('');
+        setDuration(4); setGeneratedVideo(null); setError(null);
     };
 
-    // Handle swapping style
     const handleStyleSwap = (newStyle: Style) => {
         setSelectedStyle(newStyle);
         setGlobalStyleId(newStyle.id);
     };
 
-    // Handle swapping character
     const handleCharacterSwap = (newCharacter: Character) => {
         setSelectedCharacter(newCharacter);
         setGlobalCharacterId(newCharacter.id);
     };
 
     if (isLoading) {
-        return (
-            <div className="w-full flex items-center justify-center py-20">
-                <Loader2 className="w-8 h-8 animate-spin text-primary" />
-            </div>
-        );
+        return <div className="w-full h-96 flex items-center justify-center"><Loader2 className="w-10 h-10 animate-spin text-primary" /></div>;
     }
 
     if (!selectedStyle || !selectedCharacter) {
         return (
-            <div className="w-full max-w-lg mx-auto text-center py-12 glass-card">
-                <p className="text-muted-foreground">Please select a style and character first</p>
-                <Button onClick={() => setStep(1)} className="mt-4 btn-glass">
-                    Go Back
-                </Button>
+            <div className="w-full max-w-lg mx-auto text-center py-20 glass rounded-3xl">
+                <p className="text-muted-foreground text-lg mb-6">Missing selection data</p>
+                <Button onClick={() => setStep(1)} variant="outline">Go Back</Button>
             </div>
         );
     }
 
     return (
-        <div className="w-full max-w-7xl mx-auto px-4 animate-fadeIn">
+        <div className="w-full max-w-7xl mx-auto px-4 animate-scaleIn pb-24">
             {/* Header */}
-            <div className="text-center mb-6">
-                <div className="w-14 h-14 mx-auto mb-3 rounded-2xl bg-gradient-to-br from-purple-500 to-blue-500 flex items-center justify-center">
-                    <Video className="w-7 h-7 text-white" />
-                </div>
-                <h2 className="text-2xl font-bold gradient-text">Video Generation</h2>
-                <p className="text-muted-foreground mt-1 text-sm">
-                    Configure your scene and bring your character to life
-                </p>
+            <div className="text-center mb-8">
+                <h2 className="text-3xl font-bold gradient-text">Video Generation</h2>
+                <p className="text-muted-foreground mt-2">Bring your creative vision to life</p>
             </div>
 
             {/* Veo Unavailable Warning */}
             {!isCheckingVeo && !veoAvailable && (
-                <div className="max-w-2xl mx-auto mb-6 p-4 rounded-xl bg-amber-500/10 border border-amber-500/30">
-                    <div className="flex items-start gap-3">
-                        <AlertTriangle className="w-5 h-5 text-amber-500 flex-shrink-0 mt-0.5" />
-                        <div>
-                            <p className="font-medium text-amber-600 dark:text-amber-400">
-                                Veo video generation is not available
-                            </p>
-                            <p className="text-sm text-amber-600/80 dark:text-amber-400/80 mt-1">
-                                Your API key doesn't have access to Veo yet. You can still download your character image.
-                            </p>
-                            <div className="mt-3 flex gap-2">
-                                <Button
-                                    size="sm"
-                                    onClick={handleDownloadCharacter}
-                                    className="btn-glass text-amber-600"
-                                >
-                                    <Download className="w-4 h-4 mr-2" />
-                                    Download Character Image
-                                </Button>
-                                <a
-                                    href="https://deepmind.google/technologies/veo/"
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="inline-flex items-center text-sm text-amber-600 hover:underline"
-                                >
-                                    Apply for Veo access →
-                                </a>
-                            </div>
+                <div className="max-w-3xl mx-auto mb-8 p-6 rounded-2xl bg-amber-500/10 border border-amber-500/20 flex flex-col sm:flex-row gap-4">
+                    <div className="p-3 bg-amber-500/20 rounded-full h-fit"><AlertTriangle className="w-6 h-6 text-amber-500" /></div>
+                    <div>
+                        <h3 className="font-semibold text-amber-600 dark:text-amber-400 text-lg">Veo Access Required</h3>
+                        <p className="text-amber-600/80 dark:text-amber-400/80 mt-1 mb-4">
+                            Video generation is currently restricted. You can still download your character assets.
+                        </p>
+                        <div className="flex flex-wrap gap-3">
+                            <Button size="sm" onClick={handleDownloadCharacter} variant="outline" className="text-amber-600 border-amber-500/30 hover:bg-amber-500/10">
+                                <Download className="w-4 h-4 mr-2" /> Download Character
+                            </Button>
+                            <Button size="sm" asChild variant="link" className="text-amber-600">
+                                <a href="https://deepmind.google/technologies/veo/" target="_blank" rel="noopener noreferrer">Apply for Access →</a>
+                            </Button>
                         </div>
                     </div>
                 </div>
             )}
 
-            {/* 3-Column Layout */}
+            {/* Main Content Grid */}
             {(veoAvailable === true || isCheckingVeo) && (
-                <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-                    {/* Column 1: Style & Character */}
-                    <div className="lg:col-span-3 space-y-4">
-                        {/* Style Card - Clickable */}
-                        <button
-                            onClick={() => setShowStyleSelector(true)}
-                            className="w-full glass-card p-4 text-left hover:ring-2 hover:ring-primary/50 transition-all group"
-                        >
-                            <h3 className="text-sm font-semibold text-foreground mb-3 flex items-center justify-between">
-                                <span className="flex items-center gap-2">
-                                    <Palette className="w-4 h-4" />
-                                    Style
-                                </span>
-                                <ArrowRightLeft className="w-4 h-4 text-muted-foreground group-hover:text-primary transition-colors" />
-                            </h3>
-                            <div className="space-y-3">
-                                <img
-                                    src={selectedStyle.referenceImageUrl}
-                                    alt={selectedStyle.name}
-                                    className="w-full aspect-square rounded-xl object-cover"
-                                />
-                                <div>
-                                    <p className="font-medium text-foreground">{selectedStyle.name}</p>
-                                    <div className="flex flex-wrap gap-1 mt-2">
-                                        {selectedStyle.keywords.slice(0, 4).map((keyword, i) => (
-                                            <span
-                                                key={i}
-                                                className="px-2 py-0.5 text-xs rounded-full bg-primary/10 text-primary"
-                                            >
-                                                {keyword}
-                                            </span>
-                                        ))}
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+                    {/* Left Column: Context (Style/Character) */}
+                    <div className="lg:col-span-3 space-y-6">
+                        <Card className="glass-card border-none">
+                            <CardHeader className="p-4 pb-2">
+                                <CardTitle className="text-sm font-medium text-muted-foreground">CONTEXT</CardTitle>
+                            </CardHeader>
+                            <CardContent className="p-4 space-y-4">
+                                {/* Style */}
+                                <div
+                                    className="group relative rounded-xl overflow-hidden aspect-square cursor-pointer"
+                                    onClick={() => setShowStyleSelector(true)}
+                                >
+                                    <img src={selectedStyle.referenceImageUrl} alt={selectedStyle.name} className="w-full h-full object-cover transition-transform group-hover:scale-110" />
+                                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                        <span className="text-xs font-medium text-white flex items-center gap-1"><ArrowRightLeft className="w-3 h-3" /> Change</span>
+                                    </div>
+                                    <div className="absolute bottom-2 left-2 right-2">
+                                        <span className="text-xs font-bold text-white bg-black/50 backdrop-blur-md px-2 py-1 rounded-md flex items-center gap-1 w-fit">
+                                            <Palette className="w-3 h-3" /> {selectedStyle.name}
+                                        </span>
                                     </div>
                                 </div>
-                            </div>
-                            <p className="text-xs text-muted-foreground mt-2 text-center opacity-0 group-hover:opacity-100 transition-opacity">
-                                Click to change style
-                            </p>
-                        </button>
 
-                        {/* Character Card - Clickable */}
-                        <button
-                            onClick={() => setShowCharacterSelector(true)}
-                            className="w-full glass-card p-4 text-left hover:ring-2 hover:ring-primary/50 transition-all group"
-                        >
-                            <h3 className="text-sm font-semibold text-foreground mb-3 flex items-center justify-between">
-                                <span className="flex items-center gap-2">
-                                    <User className="w-4 h-4" />
-                                    Character
-                                </span>
-                                <ArrowRightLeft className="w-4 h-4 text-muted-foreground group-hover:text-primary transition-colors" />
-                            </h3>
-                            <div className="space-y-3">
-                                <img
-                                    src={selectedCharacter.imageUrl}
-                                    alt={selectedCharacter.name}
-                                    className="w-full aspect-square rounded-xl object-cover"
-                                />
-                                <div>
-                                    <p className="font-medium text-foreground">{selectedCharacter.name}</p>
-                                    <p className="text-xs text-muted-foreground mt-1 line-clamp-2">
-                                        {selectedCharacter.prompt}
-                                    </p>
+                                {/* Character */}
+                                <div
+                                    className="group relative rounded-xl overflow-hidden aspect-square cursor-pointer"
+                                    onClick={() => setShowCharacterSelector(true)}
+                                >
+                                    <img src={selectedCharacter.imageUrl} alt={selectedCharacter.name} className="w-full h-full object-cover transition-transform group-hover:scale-110" />
+                                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                        <span className="text-xs font-medium text-white flex items-center gap-1"><ArrowRightLeft className="w-3 h-3" /> Change</span>
+                                    </div>
+                                    <div className="absolute bottom-2 left-2 right-2">
+                                        <span className="text-xs font-bold text-white bg-black/50 backdrop-blur-md px-2 py-1 rounded-md flex items-center gap-1 w-fit">
+                                            <User className="w-3 h-3" /> {selectedCharacter.name}
+                                        </span>
+                                    </div>
                                 </div>
-                            </div>
-                            <p className="text-xs text-muted-foreground mt-2 text-center opacity-0 group-hover:opacity-100 transition-opacity">
-                                Click to change character
-                            </p>
-                        </button>
-
-                        {/* Back Button */}
-                        <Button variant="ghost" onClick={prevStep} className="w-full btn-glass">
-                            <svg
-                                className="w-4 h-4 mr-2"
-                                fill="none"
-                                viewBox="0 0 24 24"
-                                stroke="currentColor"
-                            >
-                                <path
-                                    strokeLinecap="round"
-                                    strokeLinejoin="round"
-                                    strokeWidth={2}
-                                    d="M11 17l-5-5m0 0l5-5m-5 5h12"
-                                />
-                            </svg>
-                            Back
-                        </Button>
+                            </CardContent>
+                        </Card>
                     </div>
 
-                    {/* Column 2: Form Inputs */}
-                    <div className="lg:col-span-5">
-                        <div className="glass-card p-5">
-                            <h3 className="text-sm font-semibold text-foreground mb-4 flex items-center gap-2">
-                                📋 Scene Configuration
-                            </h3>
-
-                            {/* AI Scene/Story Builder */}
-                            <div className="mb-4 rounded-xl border border-purple-500/30 bg-gradient-to-r from-purple-500/5 to-blue-500/5 overflow-hidden">
+                    {/* Middle Column: Configuration */}
+                    <div className="lg:col-span-5 space-y-6">
+                        {/* AI Builder Section */}
+                        <div className="glass p-1 rounded-2xl bg-gradient-to-br from-primary/10 to-purple-500/10">
+                            <div className="bg-background/50 backdrop-blur-xl rounded-xl overflow-hidden">
                                 <button
-                                    type="button"
                                     onClick={() => setSceneBuilderOpen(!sceneBuilderOpen)}
-                                    className="w-full px-4 py-3 flex items-center justify-between text-left hover:bg-primary/5 transition-colors"
+                                    className="w-full px-5 py-4 flex items-center justify-between hover:bg-white/5 transition-colors"
                                 >
-                                    <span className="flex items-center gap-2 text-sm font-medium">
-                                        <Wand2 className="w-4 h-4 text-purple-500" />
-                                        ✨ AI {builderMode === 'scene' ? 'Scene' : 'Story'} Builder
-                                        <span className="text-xs text-muted-foreground font-normal">
-                                            ~${builderMode === 'scene'
-                                                ? PRICING.SCENE_BUILDER.toFixed(2)
-                                                : calculateStoryCost(segmentCount).toFixed(2)
-                                            } MXN
-                                        </span>
-                                    </span>
-                                    {sceneBuilderOpen ? (
-                                        <ChevronUp className="w-4 h-4 text-muted-foreground" />
-                                    ) : (
-                                        <ChevronDown className="w-4 h-4 text-muted-foreground" />
-                                    )}
+                                    <div className="flex items-center gap-3">
+                                        <div className="p-2 rounded-lg bg-gradient-to-br from-purple-500 to-indigo-500 text-white shadow-lg shadow-purple-500/20">
+                                            <Wand2 className="w-4 h-4" />
+                                        </div>
+                                        <div className="text-left">
+                                            <h3 className="font-semibold text-sm">AI Scene Builder</h3>
+                                            <p className="text-xs text-muted-foreground">Auto-generate cinematic prompts</p>
+                                        </div>
+                                    </div>
+                                    {sceneBuilderOpen ? <ChevronUp className="w-4 h-4 text-muted-foreground" /> : <ChevronDown className="w-4 h-4 text-muted-foreground" />}
                                 </button>
 
                                 {sceneBuilderOpen && (
-                                    <div className="px-4 pb-4 space-y-3">
-                                        {/* Pro Toggle - Only for specific user */}
+                                    <div className="px-5 pb-5 pt-2 space-y-4 animate-in slide-in-from-top-2 duration-200">
                                         {canUseProBuilder && (
-                                            <div className="flex justify-center mb-1">
-                                                <div
-                                                    className="flex items-center gap-2 bg-amber-500/10 border border-amber-500/20 px-3 py-1 rounded-full cursor-pointer hover:bg-amber-500/20 transition-colors"
+                                            <div className="flex justify-center">
+                                                <button
                                                     onClick={() => setUseProBuilder(!useProBuilder)}
+                                                    className={`text-xs px-3 py-1 rounded-full border transition-all ${useProBuilder
+                                                        ? 'bg-amber-500/10 border-amber-500/30 text-amber-500'
+                                                        : 'bg-muted border-border text-muted-foreground'}`}
                                                 >
-                                                    <span className="text-xs font-bold text-amber-600 dark:text-amber-400 uppercase tracking-wider">
-                                                        Hyper-Realism
-                                                    </span>
-                                                    <div className={`w-8 h-4 rounded-full p-0.5 transition-colors ${useProBuilder ? 'bg-amber-500' : 'bg-muted'}`}>
-                                                        <div className={`w-3 h-3 bg-white rounded-full shadow-sm transition-transform ${useProBuilder ? 'translate-x-4' : 'translate-x-0'}`} />
-                                                    </div>
-                                                </div>
+                                                    {useProBuilder ? '🔥 Hyper-Realism Active' : 'Enable Hyper-Realism'}
+                                                </button>
                                             </div>
                                         )}
 
-                                        {/* Mode Toggle */}
-                                        <div className="flex justify-center">
-                                            <div className="inline-flex p-1 rounded-lg glass">
-                                                <button
-                                                    type="button"
-                                                    onClick={() => setBuilderMode('scene')}
-                                                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-all ${builderMode === 'scene'
-                                                        ? 'bg-gradient-to-br from-purple-500 to-blue-500 text-white'
-                                                        : 'text-muted-foreground hover:text-foreground'
-                                                        }`}
-                                                >
-                                                    <Film className="w-3 h-3" />
-                                                    Scene
-                                                </button>
-                                                <button
-                                                    type="button"
-                                                    onClick={() => setBuilderMode('story')}
-                                                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-all ${builderMode === 'story'
-                                                        ? 'bg-gradient-to-br from-purple-500 to-blue-500 text-white'
-                                                        : 'text-muted-foreground hover:text-foreground'
-                                                        }`}
-                                                >
-                                                    <BookOpen className="w-3 h-3" />
-                                                    Story
-                                                </button>
-                                            </div>
-                                        </div>
-
-                                        <p className="text-xs text-muted-foreground text-center">
-                                            {builderMode === 'scene'
-                                                ? 'Describe your video idea and AI will fill the form.'
-                                                : 'Describe your story and AI will generate multiple segments.'
-                                            }
-                                        </p>
-
-                                        {/* Segment Count (Story mode only) */}
-                                        {builderMode === 'story' && (
-                                            <div className="flex items-center justify-center gap-2 p-2 rounded-lg glass">
-                                                <span className="text-xs font-medium">Segments:</span>
-                                                {[2, 3, 4, 5, 6].map((count) => (
-                                                    <button
-                                                        key={count}
-                                                        type="button"
-                                                        onClick={() => setSegmentCount(count)}
-                                                        disabled={isGeneratingScene}
-                                                        className={`w-7 h-7 rounded-md text-xs font-medium transition-all ${segmentCount === count
-                                                            ? 'bg-gradient-to-br from-purple-500 to-blue-500 text-white'
-                                                            : 'glass hover:bg-primary/10'
-                                                            }`}
-                                                    >
-                                                        {count}
-                                                    </button>
-                                                ))}
-                                                <span className="text-xs text-muted-foreground">
-                                                    ({segmentCount * 8}s)
-                                                </span>
-                                            </div>
-                                        )}
-
-                                        {/* Import Button */}
-                                        <div className="flex justify-end px-1">
+                                        <div className="flex justify-center gap-2 p-1 bg-muted/50 rounded-lg w-fit mx-auto">
                                             <button
-                                                type="button"
-                                                onClick={() => setShowImportModal(true)}
-                                                className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-primary transition-colors"
-                                            >
-                                                <Import className="w-3 h-3" />
-                                                Import JSON
-                                            </button>
+                                                onClick={() => setBuilderMode('scene')}
+                                                className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${builderMode === 'scene' ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
+                                            >Scene Mode</button>
+                                            <button
+                                                onClick={() => setBuilderMode('story')}
+                                                className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${builderMode === 'story' ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
+                                            >Story Mode</button>
                                         </div>
 
-                                        <Textarea
-                                            value={aiPrompt}
-                                            onChange={(e) => setAiPrompt(e.target.value)}
-                                            placeholder={builderMode === 'scene'
-                                                ? "Ej: Un capybara bailando en una discoteca con luces neón..."
-                                                : "Ej: Una historia de un gato samurai que aprende una lección de humildad..."
-                                            }
-                                            className="glass-input min-h-[70px] text-sm"
-                                            disabled={isGeneratingScene || isGenerating}
-                                        />
-
-                                        {sceneBuilderError && (
-                                            <div className="p-2 rounded-lg bg-destructive/10 border border-destructive/30">
-                                                <p className="text-xs text-destructive">{sceneBuilderError}</p>
+                                        <div className="relative">
+                                            <Textarea
+                                                value={aiPrompt}
+                                                onChange={(e) => setAiPrompt(e.target.value)}
+                                                placeholder={builderMode === 'scene' ? "Describe your scene..." : "Describe your story plot..."}
+                                                className="min-h-[100px] resize-none pr-10 glass-input"
+                                            />
+                                            <div className="absolute bottom-2 right-2">
+                                                <Button
+                                                    size="sm"
+                                                    onClick={builderMode === 'scene' ? handleGenerateScene : handleGenerateStory}
+                                                    disabled={!aiPrompt.trim() || isGeneratingScene}
+                                                    className="h-8 text-xs bg-primary/20 hover:bg-primary/30 text-primary border border-primary/20 backdrop-blur-sm"
+                                                >
+                                                    {isGeneratingScene ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : <Sparkles className="w-3 h-3 mr-1" />}
+                                                    Generate
+                                                </Button>
                                             </div>
-                                        )}
+                                        </div>
 
-                                        {lastSceneCost && (
-                                            <div className="p-2 rounded-lg bg-green-500/10 border border-green-500/30">
-                                                <p className="text-xs text-green-600 dark:text-green-400">
-                                                    ✓ {builderMode === 'scene' ? 'Scene' : 'Story'} generated • Cost: ${lastSceneCost.toFixed(2)} MXN
-                                                </p>
-                                            </div>
-                                        )}
-
-                                        <Button
-                                            type="button"
-                                            onClick={builderMode === 'scene' ? handleGenerateScene : handleGenerateStory}
-                                            disabled={!aiPrompt.trim() || isGeneratingScene || isGenerating}
-                                            className="w-full bg-gradient-to-r from-purple-500 to-blue-500 hover:from-purple-600 hover:to-blue-600 text-white"
-                                        >
-                                            {isGeneratingScene ? (
-                                                <>
-                                                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                                                    Generating {builderMode === 'scene' ? 'Scene' : 'Story'}...
-                                                </>
-                                            ) : (
-                                                <>
-                                                    <Wand2 className="w-4 h-4 mr-2" />
-                                                    Generate {builderMode === 'scene' ? 'Scene' : `${segmentCount}-Segment Story`}
-                                                </>
-                                            )}
-                                        </Button>
-
-                                        {/* Story Segments Carousel (when story is generated) */}
-                                        {builderMode === 'story' && storySegments.length > 0 && (
-                                            <div className="mt-3 pt-3 border-t border-border">
-                                                <div className="flex items-center justify-between mb-2">
-                                                    <h4 className="text-xs font-medium flex items-center gap-1.5">
-                                                        📖 {storyTitle || 'Generated Story'}
-                                                    </h4>
-                                                    <span className="text-xs text-muted-foreground">
-                                                        {storySegments.length} segments • {storySegments.length * 8}s
-                                                    </span>
-                                                </div>
-
-                                                {/* Segment Pills */}
-                                                <div className="flex flex-wrap gap-1.5 mb-2">
-                                                    {storySegments.map((seg, idx) => (
+                                        {builderMode === 'story' && (
+                                            <div className="flex items-center justify-between text-xs text-muted-foreground px-1">
+                                                <span>Segments:</span>
+                                                <div className="flex gap-1">
+                                                    {[2, 3, 4, 5, 6].map(n => (
                                                         <button
-                                                            key={idx}
-                                                            type="button"
-                                                            onClick={() => {
-                                                                setCurrentSegmentIndex(idx);
-                                                                // Fill form with this segment
-                                                                setEscena(seg.escena);
-
-                                                                let fondoText = seg.fondo || '';
-                                                                if (seg.condicionesFisicas) {
-                                                                    fondoText += `\n\n[Physical Conditions]: ${seg.condicionesFisicas}`;
-                                                                }
-                                                                if (seg.contextoInvisible) {
-                                                                    fondoText += `\n[Invisible Context]: ${seg.contextoInvisible}`;
-                                                                }
-                                                                setFondo(fondoText);
-
-                                                                setAccion(seg.accion);
-                                                                setDialogo(seg.dialogo);
-                                                                setVoiceStyle(seg.voiceStyle || '');
-
-                                                                let movimientoText = seg.movimiento || '';
-                                                                if (seg.defectosTecnicos) {
-                                                                    movimientoText += `\n[Technical Defects]: ${seg.defectosTecnicos}`;
-                                                                }
-                                                                setMovimiento(movimientoText);
-
-                                                                setDuration(8);
-                                                            }}
-                                                            className={`flex items-center gap-1 px-2 py-1 rounded-md text-xs transition-all ${idx === currentSegmentIndex
-                                                                ? 'bg-gradient-to-br from-purple-500 to-blue-500 text-white'
-                                                                : 'glass hover:bg-primary/10'
-                                                                }`}
+                                                            key={n}
+                                                            onClick={() => setSegmentCount(n)}
+                                                            className={`w-6 h-6 rounded-md flex items-center justify-center transition-colors ${segmentCount === n ? 'bg-primary text-primary-foreground' : 'bg-muted hover:bg-muted/80'}`}
                                                         >
-                                                            <span className="font-medium">{idx + 1}</span>
-                                                            <span className="truncate max-w-[80px]">{seg.title}</span>
+                                                            {n}
                                                         </button>
                                                     ))}
                                                 </div>
-
-                                                {/* Navigation */}
-                                                <div className="flex items-center justify-between">
-                                                    <Button
-                                                        type="button"
-                                                        variant="outline"
-                                                        size="sm"
-                                                        onClick={() => {
-                                                            const newIdx = Math.max(0, currentSegmentIndex - 1);
-                                                            setCurrentSegmentIndex(newIdx);
-                                                            const seg = storySegments[newIdx];
-                                                            setEscena(seg.escena);
-                                                            setFondo(seg.fondo || '');
-                                                            setAccion(seg.accion);
-                                                            setDialogo(seg.dialogo);
-                                                            setVoiceStyle(seg.voiceStyle || '');
-                                                            setMovimiento(seg.movimiento || '');
-                                                        }}
-                                                        disabled={currentSegmentIndex === 0}
-                                                        className="h-7 text-xs glass"
-                                                    >
-                                                        <ChevronLeft className="w-3 h-3 mr-1" />
-                                                        Prev
-                                                    </Button>
-                                                    <span className="text-xs text-muted-foreground">
-                                                        Segment {currentSegmentIndex + 1} / {storySegments.length}
-                                                    </span>
-                                                    <Button
-                                                        type="button"
-                                                        variant="outline"
-                                                        size="sm"
-                                                        onClick={() => {
-                                                            const newIdx = Math.min(storySegments.length - 1, currentSegmentIndex + 1);
-                                                            setCurrentSegmentIndex(newIdx);
-                                                            const seg = storySegments[newIdx];
-                                                            setEscena(seg.escena);
-                                                            setFondo(seg.fondo || '');
-                                                            setAccion(seg.accion);
-                                                            setDialogo(seg.dialogo);
-                                                            setVoiceStyle(seg.voiceStyle || '');
-                                                            setMovimiento(seg.movimiento || '');
-                                                        }}
-                                                        disabled={currentSegmentIndex === storySegments.length - 1}
-                                                        className="h-7 text-xs glass"
-                                                    >
-                                                        Next
-                                                        <ChevronRight className="w-3 h-3 ml-1" />
-                                                    </Button>
-                                                </div>
                                             </div>
                                         )}
+                                        <div className="flex justify-end">
+                                            <button
+                                                onClick={() => setShowImportModal(true)}
+                                                className="text-xs text-muted-foreground hover:text-primary flex items-center gap-1 transition-colors"
+                                            >
+                                                <Import className="w-3 h-3" /> Import JSON
+                                            </button>
+                                        </div>
                                     </div>
                                 )}
                             </div>
+                        </div>
 
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                {/* Escena */}
+                        {/* Parameters Form */}
+                        <Card className="glass-card border-none space-y-4 p-6">
+                            <h3 className="text-sm font-semibold text-foreground flex items-center gap-2 mb-4">
+                                <Film className="w-4 h-4" /> Parameters
+                            </h3>
+
+                            <div className="space-y-4">
                                 <div className="space-y-1.5">
-                                    <Label htmlFor="escena" className="text-xs">
-                                        Escena <span className="text-destructive">*</span>
+                                    <Label className="text-xs">
+                                        Scene Description <span className="text-destructive">*</span>
                                     </Label>
                                     <Textarea
-                                        id="escena"
-                                        value={escena}
-                                        onChange={(e) => setEscena(e.target.value)}
-                                        placeholder="Escenario, iluminación..."
-                                        className="glass-input min-h-[70px] text-sm"
-                                        disabled={isGenerating}
+                                        value={escena} onChange={e => setEscena(e.target.value)}
+                                        placeholder="Detailed description of the environment..."
+                                        className="glass-input h-20 text-sm"
                                     />
                                 </div>
 
-                                {/* Fondo */}
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div className="space-y-1.5">
+                                        <Label className="text-xs">Action <span className="text-destructive">*</span></Label>
+                                        <Input
+                                            value={accion} onChange={e => setAccion(e.target.value)}
+                                            placeholder="What happens?"
+                                            className="glass-input h-9 text-sm"
+                                        />
+                                    </div>
+                                    <div className="space-y-1.5">
+                                        <Label className="text-xs">Dialogue <span className="text-destructive">*</span></Label>
+                                        <Input
+                                            value={dialogo} onChange={e => setDialogo(e.target.value)}
+                                            placeholder="Spoken text..."
+                                            className="glass-input h-9 text-sm"
+                                        />
+                                    </div>
+                                </div>
+
                                 <div className="space-y-1.5">
-                                    <Label htmlFor="fondo" className="text-xs">
-                                        Fondo <span className="text-muted-foreground">(opcional)</span>
-                                    </Label>
+                                    <Label className="text-xs">Secondary Details (Optional)</Label>
                                     <Textarea
-                                        id="fondo"
-                                        value={fondo}
-                                        onChange={(e) => setFondo(e.target.value)}
-                                        placeholder="Cielo, ciudad, bosque..."
-                                        className="glass-input min-h-[70px] text-sm"
-                                        disabled={isGenerating}
+                                        value={fondo} onChange={e => setFondo(e.target.value)}
+                                        placeholder="Background details, lighting, camera angles..."
+                                        className="glass-input h-16 text-sm"
                                     />
                                 </div>
 
-                                {/* Acción */}
-                                <div className="space-y-1.5">
-                                    <Label htmlFor="accion" className="text-xs">
-                                        Acción <span className="text-destructive">*</span>
-                                    </Label>
-                                    <Textarea
-                                        id="accion"
-                                        value={accion}
-                                        onChange={(e) => setAccion(e.target.value)}
-                                        placeholder="Qué sucede en la escena..."
-                                        className="glass-input min-h-[70px] text-sm"
-                                        disabled={isGenerating}
-                                    />
-                                </div>
-
-                                {/* Diálogo */}
-                                <div className="space-y-1.5">
-                                    <Label htmlFor="dialogo" className="text-xs">
-                                        Diálogo <span className="text-destructive">*</span>
-                                    </Label>
-                                    <Textarea
-                                        id="dialogo"
-                                        value={dialogo}
-                                        onChange={(e) => setDialogo(e.target.value)}
-                                        placeholder='Lo que dice el personaje...'
-                                        className="glass-input min-h-[70px] text-sm"
-                                        disabled={isGenerating}
-                                    />
-                                </div>
-
-                                {/* Voice Style */}
-                                <div className="space-y-1.5">
-                                    <Label htmlFor="voiceStyle" className="text-xs">
-                                        Estilo de Voz <span className="text-muted-foreground">(opcional)</span>
-                                    </Label>
-                                    <Input
-                                        id="voiceStyle"
-                                        value={voiceStyle}
-                                        onChange={(e) => setVoiceStyle(e.target.value)}
-                                        placeholder="ej: suave, enérgico, misterioso..."
-                                        className="glass-input text-sm"
-                                        disabled={isGenerating}
-                                    />
-                                </div>
-
-                                {/* Movimiento - Full width */}
-                                <div className="space-y-1.5 md:col-span-2">
-                                    <Label htmlFor="movimiento" className="text-xs">
-                                        Movimiento <span className="text-muted-foreground">(opcional)</span>
-                                    </Label>
-                                    <Input
-                                        id="movimiento"
-                                        value={movimiento}
-                                        onChange={(e) => setMovimiento(e.target.value)}
-                                        placeholder="Cámara, animaciones del personaje..."
-                                        className="glass-input text-sm"
-                                        disabled={isGenerating}
-                                    />
-                                </div>
-
-                                {/* Duration - Full width */}
-                                <div className="space-y-1.5 md:col-span-2">
+                                <div className="space-y-3 pt-2">
                                     <Label className="text-xs">Duration</Label>
                                     <div className="flex gap-2">
-                                        {durationOptions.map((option) => (
+                                        {durationOptions.map(opt => (
                                             <button
-                                                key={option.value}
-                                                onClick={() => setDuration(option.value)}
-                                                disabled={isGenerating}
-                                                className={`flex-1 py-2 px-3 rounded-xl text-sm font-medium transition-all duration-200 ${duration === option.value
-                                                    ? 'bg-gradient-to-br from-purple-500 to-blue-500 text-white'
-                                                    : 'glass hover:bg-primary/10'
-                                                    }`}
+                                                key={opt.value}
+                                                onClick={() => setDuration(opt.value)}
+                                                className={`flex-1 py-2 rounded-xl text-sm font-medium transition-all ${duration === opt.value ? 'bg-primary text-primary-foreground shadow-lg shadow-primary/20' : 'bg-muted/50 hover:bg-muted text-muted-foreground'}`}
                                             >
-                                                {option.label}
+                                                {opt.label}
                                             </button>
                                         ))}
                                     </div>
                                 </div>
                             </div>
 
-                            {/* Error */}
-                            {error && (
-                                <div className="mt-4">
-                                    <ErrorMessage message={error} onDismiss={() => setError(null)} />
-                                </div>
-                            )}
-
-                            {/* Generate Button */}
                             <Button
                                 onClick={handleGenerate}
-                                disabled={!isFormValid || isGenerating || isCheckingVeo}
-                                className="w-full btn-gradient py-5 mt-4"
+                                disabled={!isFormValid || isGenerating}
+                                className="w-full mt-4 btn-gradient py-6 text-base shadow-xl shadow-primary/20"
                             >
                                 {isGenerating ? (
                                     <>
                                         <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                                        {progressMessage || 'Generating Video...'}
+                                        Generating...
                                     </>
                                 ) : (
                                     <>
@@ -1086,177 +688,115 @@ export function Step3_VideoGeneration() {
                                     </>
                                 )}
                             </Button>
-
-                            {/* Status Text */}
-                            <p className="text-center text-xs text-muted-foreground mt-2">
-                                {isFormValid ? '✓ Ready to generate' : '• Fill in required fields'}
-                            </p>
-                        </div>
+                        </Card>
                     </div>
 
-                    {/* Column 3: Video Preview & Cost */}
-                    <div className="lg:col-span-4 space-y-4">
-                        {/* Cost Estimator */}
-                        <div className="glass-card p-4">
-                            <h3 className="text-sm font-semibold text-foreground mb-3 flex items-center gap-2">
-                                <DollarSign className="w-4 h-4" />
-                                Cost Estimate
-                            </h3>
-                            <div className="space-y-2">
-                                <div className="flex items-center justify-between text-sm">
-                                    <span className="text-muted-foreground flex items-center gap-2">
-                                        <Clock className="w-4 h-4" />
-                                        Duration
-                                    </span>
-                                    <span className="font-medium text-foreground">{duration}s</span>
-                                </div>
-                                <div className="flex items-center justify-between text-sm">
-                                    <span className="text-muted-foreground">Rate</span>
-                                    <span className="font-medium text-foreground">$0.5425 USD/s</span>
-                                </div>
-                                <div className="border-t border-border pt-2 mt-2">
-                                    <div className="flex items-center justify-between">
-                                        <span className="text-muted-foreground text-sm">Est. Cost (USD)</span>
-                                        <span className="font-semibold text-foreground">
-                                            ${estimatedCostUSD.toFixed(2)}
-                                        </span>
-                                    </div>
-                                    <div className="flex items-center justify-between mt-1">
-                                        <span className="text-muted-foreground text-sm">Est. Cost (MXN)</span>
-                                        <span className="font-bold text-lg gradient-text">
-                                            ${estimatedCostMXN.toFixed(2)}
-                                        </span>
-                                    </div>
-                                </div>
+                    {/* Right Column: Preview & Status */}
+                    <div className="lg:col-span-4 space-y-6">
+                        {/* Cost Card */}
+                        <Card className="glass-card border-none p-5">
+                            <div className="flex items-center justify-between mb-4">
+                                <h3 className="text-sm font-semibold flex items-center gap-2"><DollarSign className="w-4 h-4" /> Cost Estimate</h3>
+                                <div className="text-xs px-2 py-0.5 rounded-full bg-green-500/10 text-green-600 font-medium">USD base</div>
                             </div>
-                        </div>
+                            <div className="flex items-end justify-between border-t border-border/50 pt-3">
+                                <div className="space-y-0.5">
+                                    <p className="text-xs text-muted-foreground">Est. Cost (MXN)</p>
+                                    <p className="text-2xl font-bold gradient-text">${estimatedCostMXN.toFixed(2)}</p>
+                                </div>
+                                <p className="text-sm text-muted-foreground mb-1">${estimatedCostUSD.toFixed(2)} USD</p>
+                            </div>
+                        </Card>
 
-                        {/* Video Preview */}
-                        <div className="glass-card p-4">
-                            <h3 className="text-sm font-semibold text-foreground mb-3 flex items-center gap-2">
-                                <Video className="w-4 h-4" />
-                                Video Preview
-                            </h3>
+                        {/* Preview Card */}
+                        <Card className="glass-card border-none p-5 flex flex-col h-fit min-h-[300px]">
+                            <h3 className="text-sm font-semibold mb-4 flex items-center gap-2"><Film className="w-4 h-4" /> Preview</h3>
 
-                            {generatedVideo ? (
-                                <div className="space-y-3">
-                                    <div className="rounded-xl overflow-hidden bg-muted/20 aspect-[9/16]">
+                            <div className="flex-1 rounded-xl bg-black/5 dark:bg-black/40 border-2 border-dashed border-muted flex items-center justify-center relative overflow-hidden group">
+                                {generatedVideo ? (
+                                    <div className="relative w-full h-full p-2">
                                         <video
                                             src={base64ToDataUrl(generatedVideo.base64, generatedVideo.mimeType)}
                                             controls
+                                            className="w-full h-full rounded-lg object-contain bg-black"
                                             autoPlay
                                             loop
-                                            className="w-full h-full object-contain"
                                         />
-                                    </div>
-                                    {generatedVideo.costMXN && (
-                                        <div className="p-3 rounded-xl bg-green-500/10 border border-green-500/30">
-                                            <p className="text-xs text-green-600 dark:text-green-400 text-center">
-                                                ✓ Video generated • Cost: <span className="font-bold">${generatedVideo.costMXN.toFixed(2)} MXN</span>
-                                            </p>
+                                        <div className="absolute top-4 right-4 flex gap-2">
+                                            <Button size="icon" variant="secondary" className="h-8 w-8 rounded-full backdrop-blur-md bg-white/10 hover:bg-white/20 text-white" onClick={handleDownload}>
+                                                <Download className="w-4 h-4" />
+                                            </Button>
                                         </div>
-                                    )}
-                                    <div className="flex gap-2">
-                                        <Button onClick={handleDownload} className="flex-1 btn-gradient py-3">
-                                            <Download className="w-4 h-4 mr-2" />
-                                            Download
-                                        </Button>
-                                        <Button onClick={handleStartNew} variant="ghost" className="btn-glass">
-                                            <RefreshCw className="w-4 h-4" />
-                                        </Button>
                                     </div>
-                                </div>
-                            ) : (
-                                <div className="rounded-xl bg-muted/10 border-2 border-dashed border-muted-foreground/20 aspect-[9/16] flex items-center justify-center">
-                                    <div className="text-center p-4">
+                                ) : (
+                                    <div className="text-center p-6">
                                         {isGenerating ? (
-                                            <>
-                                                <Loader2 className="w-10 h-10 animate-spin text-primary mx-auto mb-3" />
-                                                <p className="text-sm text-muted-foreground">
-                                                    {progressMessage || 'Generating...'}
-                                                </p>
-                                            </>
+                                            <div className="space-y-3">
+                                                <Loader2 className="w-10 h-10 animate-spin text-primary mx-auto" />
+                                                <p className="text-sm text-foreground font-medium animate-pulse">{progressMessage || "Processing..."}</p>
+                                            </div>
                                         ) : (
-                                            <>
-                                                <Video className="w-10 h-10 text-muted-foreground/40 mx-auto mb-3" />
-                                                <p className="text-sm text-muted-foreground">
-                                                    Video preview will appear here
-                                                </p>
-                                            </>
+                                            <div className="space-y-2">
+                                                <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center mx-auto mb-2">
+                                                    <Video className="w-6 h-6 text-muted-foreground" />
+                                                </div>
+                                                <p className="text-sm text-muted-foreground">Generated video will appear here</p>
+                                            </div>
                                         )}
                                     </div>
+                                )}
+                            </div>
+
+                            {generatedVideo && (
+                                <div className="mt-4 grid grid-cols-2 gap-3">
+                                    <Button onClick={handleDownload} variant="outline" className="w-full">
+                                        <Download className="w-4 h-4 mr-2" /> Save
+                                    </Button>
+                                    <Button onClick={handleStartNew} variant="ghost" className="w-full">
+                                        <RefreshCw className="w-4 h-4 mr-2" /> New
+                                    </Button>
                                 </div>
                             )}
-                        </div>
+                        </Card>
                     </div>
                 </div>
             )}
 
-            {/* Video Generating Modal */}
-            <VideoGeneratingModal
-                isOpen={isGenerating}
-                progressMessage={progressMessage}
-                elapsedTime={elapsedTime}
+            {/* Mobile Actions */}
+            <MobileStyleCharacterBar
+                style={selectedStyle}
+                character={selectedCharacter}
+                onChangeStyle={() => setShowStyleSelector(true)}
+                onChangeCharacter={() => setShowCharacterSelector(true)}
             />
 
-            {/* Style Selector Modal */}
-            <StyleSelectorModal
-                open={showStyleSelector}
-                onClose={() => setShowStyleSelector(false)}
-                onSelect={handleStyleSwap}
-                currentStyleId={selectedStyle?.id}
+            <MobileCostBar
+                cost={estimatedCostMXN}
+                isValid={isFormValid}
+                onGenerate={handleGenerate}
+                isGenerating={isGenerating}
             />
 
-            {/* Character Selector Modal */}
-            <CharacterSelectorModal
-                open={showCharacterSelector}
-                onClose={() => setShowCharacterSelector(false)}
-                onSelect={handleCharacterSwap}
-                currentCharacterId={selectedCharacter?.id}
-            />
-            {/* Import Story Modal */}
-            <Dialog open={showImportModal} onOpenChange={(open) => !open && setShowImportModal(false)}>
-                <DialogContent className="glass-modal max-w-2xl max-h-[85vh] flex flex-col overflow-hidden">
-                    <DialogHeader className="flex-shrink-0">
-                        <DialogTitle className="flex items-center gap-2">
-                            <Import className="w-5 h-5" />
-                            Import Story JSON
-                        </DialogTitle>
-                        <DialogDescription>
-                            Paste your scene or story JSON configuration below.
-                        </DialogDescription>
+            {/* Modals */}
+            <VideoGeneratingModal isOpen={isGenerating} progressMessage={progressMessage} elapsedTime={elapsedTime} />
+            <StyleSelectorModal open={showStyleSelector} onClose={() => setShowStyleSelector(false)} onSelect={handleStyleSwap} currentStyleId={selectedStyle?.id} />
+            <CharacterSelectorModal open={showCharacterSelector} onClose={() => setShowCharacterSelector(false)} onSelect={handleCharacterSwap} currentCharacterId={selectedCharacter?.id} />
+
+            <Dialog open={showImportModal} onOpenChange={setShowImportModal}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>Import Story JSON</DialogTitle>
+                        <DialogDescription>Paste your structured story JSON to auto-populate the wizard.</DialogDescription>
                     </DialogHeader>
-
-                    <div className="space-y-4 py-2 flex-1 overflow-y-auto px-1">
-                        <Textarea
-                            value={importJson}
-                            onChange={(e) => {
-                                setImportJson(e.target.value);
-                                setImportError(null);
-                            }}
-                            placeholder='Paste JSON here... {"segments": [...]}'
-                            className="font-mono text-xs min-h-[300px] glass-input resize-y"
-                        />
-
-                        {importError && (
-                            <div className="p-3 rounded-lg bg-destructive/10 border border-destructive/30 text-destructive text-sm flex items-start gap-2">
-                                <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />
-                                <span>{importError}</span>
-                            </div>
-                        )}
-                    </div>
-
-                    <DialogFooter className="flex-shrink-0 pt-2">
-                        <Button variant="ghost" onClick={() => setShowImportModal(false)}>
-                            Cancel
-                        </Button>
-                        <Button
-                            onClick={handleImportStory}
-                            disabled={!importJson.trim()}
-                            className="bg-primary text-primary-foreground hover:bg-primary/90"
-                        >
-                            Import Story
-                        </Button>
+                    <Textarea
+                        value={importJson} onChange={e => setImportJson(e.target.value)}
+                        placeholder='{ "storyTitle": "...", "segments": [...] }'
+                        className="h-48 font-mono text-xs"
+                    />
+                    {importError && <p className="text-xs text-destructive">{importError}</p>}
+                    <DialogFooter>
+                        <Button variant="ghost" onClick={() => setShowImportModal(false)}>Cancel</Button>
+                        <Button onClick={handleImportStory}>Import</Button>
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
