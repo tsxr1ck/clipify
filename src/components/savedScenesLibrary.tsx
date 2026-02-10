@@ -18,8 +18,17 @@ import {
     BookOpen,
     Sparkles,
     Eye,
+    MoreVertical,
+    Download
 } from 'lucide-react';
 import { toast } from 'sonner';
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { Card } from '@/components/ui/card';
 
 type MainTab = 'generations' | 'scenes' | 'stories';
 type GenerationFilter = 'all' | 'video' | 'image';
@@ -74,7 +83,7 @@ export function GenerationsLibrary() {
         favorites: showFavoritesOnly,
     });
 
-    // Filter generations by search
+    // Filter generations by search locally since hook might not support it fully or for instant feedback
     const filteredGenerations = searchQuery
         ? generations.filter(g =>
             g.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -82,31 +91,34 @@ export function GenerationsLibrary() {
         )
         : generations;
 
-    const handleDeleteGeneration = async (id: string) => {
-        if (!confirm('Delete this generation?')) return;
+    const handleDeleteGeneration = async (id: string, e: React.MouseEvent) => {
+        e.stopPropagation();
+        if (!confirm('Are you sure you want to delete this generation?')) return;
         try {
             await deleteGeneration(id);
-            toast.success('Deleted');
+            toast.success('Deleted successfully');
         } catch (err) {
             toast.error('Failed to delete');
         }
     };
 
-    const handleDeleteScene = async (id: string) => {
+    const handleDeleteScene = async (id: string, e: React.MouseEvent) => {
+        e.stopPropagation();
         if (!confirm('Delete this scene template?')) return;
         try {
             await deleteScene(id);
-            toast.success('Deleted');
+            toast.success('Deleted successfully');
         } catch (err) {
             toast.error('Failed to delete');
         }
     };
 
-    const handleDeleteStory = async (id: string) => {
+    const handleDeleteStory = async (id: string, e: React.MouseEvent) => {
+        e.stopPropagation();
         if (!confirm('Delete this story template?')) return;
         try {
             await deleteStory(id);
-            toast.success('Deleted');
+            toast.success('Deleted successfully');
         } catch (err) {
             toast.error('Failed to delete');
         }
@@ -115,324 +127,459 @@ export function GenerationsLibrary() {
     const loading = mainTab === 'generations' ? generationsLoading : mainTab === 'scenes' ? scenesLoading : storiesLoading;
     const error = mainTab === 'generations' ? generationsError : mainTab === 'scenes' ? scenesError : storiesError;
 
-    const videoCount = generations.filter(g => g.generationType === 'video').length;
-    const imageCount = generations.filter(g => g.generationType === 'image').length;
+
 
     return (
-        <div className="max-w-6xl mx-auto">
+        <div className="w-full max-w-7xl mx-auto px-4 pb-24 animate-fadeIn">
             {/* Header */}
-            <div className="text-center mb-8">
-                <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-amber-500 to-orange-500 mb-4">
+            <div className="flex flex-col items-center justify-center text-center mb-10">
+                <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center mb-4 shadow-lg shadow-amber-500/20">
                     <Library className="w-8 h-8 text-white" />
                 </div>
-                <h1 className="text-3xl font-bold gradient-text mb-2">Your Library</h1>
-                <p className="text-muted-foreground max-w-lg mx-auto">
-                    Generated content and reusable templates
+                <h1 className="text-4xl font-bold tracking-tight mb-2 gradient-text">Your Library</h1>
+                <p className="text-muted-foreground max-w-lg">
+                    Manage your creative portfolio, saved templates, and generation history.
                 </p>
             </div>
 
-            {/* Main Card */}
-            <div className="glass-card p-6">
-                {/* Main Tabs */}
-                <div className="flex justify-center mb-6">
-                    <div className="inline-flex p-1 rounded-xl glass">
-                        <button
-                            onClick={() => setMainTab('generations')}
-                            className={`flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-medium transition-all ${mainTab === 'generations'
-                                ? 'bg-gradient-to-br from-purple-500 to-blue-500 text-white'
-                                : 'text-muted-foreground hover:text-foreground'
-                                }`}
-                        >
-                            <Film className="w-4 h-4" />
-                            Generations ({pagination.total})
-                        </button>
-                        <button
-                            onClick={() => setMainTab('scenes')}
-                            className={`flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-medium transition-all ${mainTab === 'scenes'
-                                ? 'bg-gradient-to-br from-purple-500 to-blue-500 text-white'
-                                : 'text-muted-foreground hover:text-foreground'
-                                }`}
-                        >
-                            <Sparkles className="w-4 h-4" />
-                            Scene Templates ({scenes.length})
-                        </button>
-                        <button
-                            onClick={() => setMainTab('stories')}
-                            className={`flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-medium transition-all ${mainTab === 'stories'
-                                ? 'bg-gradient-to-br from-purple-500 to-blue-500 text-white'
-                                : 'text-muted-foreground hover:text-foreground'
-                                }`}
-                        >
-                            <BookOpen className="w-4 h-4" />
-                            Story Templates ({stories.length})
-                        </button>
-                    </div>
+            {/* Main Tabs */}
+            <div className="flex justify-center mb-8">
+                <div className="glass p-1.5 rounded-2xl inline-flex gap-1 bg-black/5 dark:bg-white/5 backdrop-blur-md border border-white/10">
+                    <TabButton
+                        active={mainTab === 'generations'}
+                        onClick={() => setMainTab('generations')}
+                        icon={Film}
+                        label="Generations"
+                        count={pagination.total}
+                        activeColor="bg-gradient-to-br from-purple-600 to-blue-600"
+                    />
+                    <TabButton
+                        active={mainTab === 'scenes'}
+                        onClick={() => setMainTab('scenes')}
+                        icon={Sparkles}
+                        label="Scene Templates"
+                        count={scenes.length}
+                        activeColor="bg-gradient-to-br from-purple-600 to-pink-600"
+                    />
+                    <TabButton
+                        active={mainTab === 'stories'}
+                        onClick={() => setMainTab('stories')}
+                        icon={BookOpen}
+                        label="Stories"
+                        count={stories.length}
+                        activeColor="bg-gradient-to-br from-amber-500 to-orange-500"
+                    />
+                </div>
+            </div>
+
+            {/* Filters Toolbar */}
+            <div className="glass-card p-4 mb-8 flex flex-col md:flex-row gap-4 items-center justify-between sticky top-4 z-40 backdrop-blur-xl">
+                {/* Search */}
+                <div className="relative w-full md:w-96 group">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground group-focus-within:text-primary transition-colors" />
+                    <input
+                        type="text"
+                        placeholder={`Search ${mainTab}...`}
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        className="w-full glass-input pl-10 h-10 text-sm rounded-xl focus:ring-2 focus:ring-primary/50 transition-all border-white/10 bg-white/5 hover:bg-white/10 focus:bg-white/10"
+                    />
                 </div>
 
-                {/* Sub-tabs for Generations */}
-                {mainTab === 'generations' && (
-                    <div className="flex justify-center mb-4">
-                        <div className="inline-flex p-1 rounded-lg glass">
+                <div className="flex items-center gap-3 w-full md:w-auto overflow-x-auto pb-2 md:pb-0 hide-scrollbar">
+                    {/* Filter Tabs (Only for Generations) */}
+                    {mainTab === 'generations' && (
+                        <div className="flex items-center p-1 rounded-lg glass border border-white/5 bg-black/5 dark:bg-white/5">
                             {(['all', 'video', 'image'] as GenerationFilter[]).map(filter => (
                                 <button
                                     key={filter}
                                     onClick={() => setGenerationFilter(filter)}
-                                    className={`flex items-center gap-1.5 px-4 py-2 rounded-md text-xs font-medium transition-all ${generationFilter === filter
-                                        ? 'bg-primary/20 text-primary'
-                                        : 'text-muted-foreground hover:text-foreground'
+                                    className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all flex items-center gap-1.5 ${generationFilter === filter
+                                        ? 'bg-white/10 text-primary shadow-sm'
+                                        : 'text-muted-foreground hover:text-foreground hover:bg-white/5'
                                         }`}
                                 >
-                                    {filter === 'all' && <Library className="w-3 h-3" />}
                                     {filter === 'video' && <Film className="w-3 h-3" />}
                                     {filter === 'image' && <ImageIcon className="w-3 h-3" />}
                                     {filter.charAt(0).toUpperCase() + filter.slice(1)}
-                                    {filter === 'video' && ` (${videoCount})`}
-                                    {filter === 'image' && ` (${imageCount})`}
                                 </button>
                             ))}
                         </div>
-                    </div>
-                )}
+                    )}
 
-                {/* Filters */}
-                <div className="flex gap-3 mb-6">
-                    <div className="flex-1 relative">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                        <input
-                            type="text"
-                            placeholder="Search..."
-                            value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
-                            className="w-full glass-input pl-10 pr-4 py-2.5 rounded-lg text-sm"
-                        />
-                    </div>
+                    <div className="w-px h-6 bg-white/10 mx-1 hidden md:block" />
+
+                    {/* Action Buttons */}
                     <button
                         onClick={() => setShowFavoritesOnly(!showFavoritesOnly)}
-                        className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-all ${showFavoritesOnly
-                            ? 'bg-gradient-to-br from-yellow-400 to-amber-500 text-white'
-                            : 'glass text-muted-foreground hover:text-foreground'
+                        className={`p-2.5 rounded-xl transition-all border ${showFavoritesOnly
+                            ? 'bg-yellow-500/10 border-yellow-500/50 text-yellow-500'
+                            : 'glass border-transparent text-muted-foreground hover:text-foreground hover:bg-white/5'
                             }`}
+                        title="Show Favorites"
                     >
                         <Star className={`w-4 h-4 ${showFavoritesOnly ? 'fill-current' : ''}`} />
                     </button>
+
                     <button
                         onClick={() => {
                             if (mainTab === 'generations') refetchGenerations();
                             else if (mainTab === 'scenes') refetchScenes();
                             else refetchStories();
                         }}
-                        className="flex items-center gap-2 px-4 py-2.5 rounded-lg glass text-muted-foreground hover:text-foreground transition-all"
+                        className="p-2.5 rounded-xl glass border border-transparent hover:bg-white/5 text-muted-foreground hover:text-primary transition-all"
+                        title="Refresh"
                     >
                         <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
                     </button>
                 </div>
+            </div>
 
-                {/* Loading */}
-                {loading && (
-                    <div className="flex items-center justify-center py-12">
-                        <RefreshCw className="w-5 h-5 animate-spin text-muted-foreground" />
-                    </div>
-                )}
+            {/* Content Area */}
+            {error && (
+                <div className="p-6 rounded-2xl bg-destructive/10 border border-destructive/20 text-center mb-8">
+                    <p className="text-destructive font-medium">Failed to load content</p>
+                    <p className="text-sm text-destructive/80 mt-1">{error}</p>
+                    <Button variant="outline" size="sm" onClick={() => window.location.reload()} className="mt-4 border-destructive/30 text-destructive hover:bg-destructive/10">
+                        Retry
+                    </Button>
+                </div>
+            )}
 
-                {/* Error */}
-                {error && (
-                    <div className="p-4 rounded-lg bg-destructive/10 border border-destructive/30 text-center">
-                        <p className="text-sm text-destructive">{error}</p>
-                    </div>
-                )}
+            {loading ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {[1, 2, 3, 4, 5, 6].map(i => (
+                        <div key={i} className="aspect-[4/3] rounded-2xl glass animate-pulse" />
+                    ))}
+                </div>
+            ) : (
+                <>
+                    {/* Generations Grid */}
+                    {mainTab === 'generations' && (
+                        <>
+                            {filteredGenerations.length === 0 ? (
+                                <EmptyState
+                                    icon={Film}
+                                    message={showFavoritesOnly ? "No favorite generations found" : "No generations yet"}
+                                    subtitle={showFavoritesOnly ? "Mark items as favorite to see them here" : "Create your first video or image to get started"}
+                                    action={!showFavoritesOnly ? () => navigate('/video') : undefined}
+                                    actionLabel="Start Creating"
+                                />
+                            ) : (
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                                    {filteredGenerations.map((gen) => (
+                                        <GenerationCard
+                                            key={gen.id}
+                                            generation={gen}
+                                            onToggleFavorite={() => toggleGenerationFavorite(gen.id)}
+                                            onDelete={(e) => handleDeleteGeneration(gen.id, e)}
+                                            onView={() => navigate(`/library/generation/${gen.id}`)}
+                                        />
+                                    ))}
+                                </div>
+                            )}
 
-                {/* Generations Grid */}
-                {mainTab === 'generations' && !loading && !error && (
-                    <>
-                        {filteredGenerations.length === 0 ? (
-                            <EmptyState icon={Film} message="No generations yet" />
+                            {/* Pagination */}
+                            {pagination.totalPages > 1 && (
+                                <div className="flex justify-center gap-2 mt-8">
+                                    <Button variant="ghost" size="sm" onClick={() => fetchPage(pagination.page - 1)} disabled={pagination.page === 1} className="glass">Previous</Button>
+                                    <div className="flex items-center px-4 rounded-lg glass text-sm font-medium">
+                                        Page {pagination.page} of {pagination.totalPages}
+                                    </div>
+                                    <Button variant="ghost" size="sm" onClick={() => fetchPage(pagination.page + 1)} disabled={pagination.page === pagination.totalPages} className="glass">Next</Button>
+                                </div>
+                            )}
+                        </>
+                    )}
+
+                    {/* Scenes Grid */}
+                    {mainTab === 'scenes' && (
+                        scenes.length === 0 ? (
+                            <EmptyState
+                                icon={Sparkles}
+                                message="No scene templates saved"
+                                subtitle="Save scenes during generation to reuse them here"
+                                action={() => navigate('/video')}
+                                actionLabel="Create Scene"
+                            />
                         ) : (
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                                {filteredGenerations.map((gen) => (
-                                    <GenerationCard
-                                        key={gen.id}
-                                        generation={gen}
-                                        onToggleFavorite={() => toggleGenerationFavorite(gen.id)}
-                                        onDelete={() => handleDeleteGeneration(gen.id)}
-                                        onView={() => navigate(`/library/generation/${gen.id}`)}
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                {scenes.map((scene) => (
+                                    <SceneCard
+                                        key={scene.id}
+                                        scene={scene}
+                                        onToggleFavorite={() => toggleSceneFavorite(scene.id)}
+                                        onDelete={(e) => handleDeleteScene(scene.id, e)}
+                                        onView={() => navigate(`/library/scene/${scene.id}`)}
+                                        onUse={() => navigate('/video', { state: { generatedScene: scene } })}
                                     />
                                 ))}
                             </div>
-                        )}
-                        {pagination.totalPages > 1 && (
-                            <div className="flex justify-center gap-2 mt-6">
-                                <Button variant="outline" size="sm" onClick={() => fetchPage(pagination.page - 1)} disabled={pagination.page === 1} className="glass">Previous</Button>
-                                <span className="px-4 py-2 text-sm text-muted-foreground">{pagination.page} / {pagination.totalPages}</span>
-                                <Button variant="outline" size="sm" onClick={() => fetchPage(pagination.page + 1)} disabled={pagination.page === pagination.totalPages} className="glass">Next</Button>
+                        )
+                    )}
+
+                    {/* Stories Grid */}
+                    {mainTab === 'stories' && (
+                        stories.length === 0 ? (
+                            <EmptyState
+                                icon={BookOpen}
+                                message="No story templates saved"
+                                subtitle="Save stories during generation to reuse them here"
+                                action={() => navigate('/video')}
+                                actionLabel="Create Story"
+                            />
+                        ) : (
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                {stories.map((story) => (
+                                    <StoryCard
+                                        key={story.id}
+                                        story={story}
+                                        onToggleFavorite={() => toggleStoryFavorite(story.id)}
+                                        onDelete={(e) => handleDeleteStory(story.id, e)}
+                                        onView={() => navigate(`/library/story/${story.id}`)}
+                                        onUse={() => navigate('/video', { state: { generatedStory: story } })}
+                                    />
+                                ))}
                             </div>
-                        )}
-                    </>
-                )}
-
-                {/* Scenes Grid */}
-                {mainTab === 'scenes' && !loading && !error && (
-                    scenes.length === 0 ? (
-                        <EmptyState icon={Sparkles} message="No scene templates yet" subtitle="Generate a scene to create a template" />
-                    ) : (
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                            {scenes.map((scene) => (
-                                <SceneCard
-                                    key={scene.id}
-                                    scene={scene}
-                                    onToggleFavorite={() => toggleSceneFavorite(scene.id)}
-                                    onDelete={() => handleDeleteScene(scene.id)}
-                                    onView={() => navigate(`/library/scene/${scene.id}`)}
-                                    onUse={() => navigate('/video', { state: { generatedScene: scene } })}
-                                />
-                            ))}
-                        </div>
-                    )
-                )}
-
-                {/* Stories Grid */}
-                {mainTab === 'stories' && !loading && !error && (
-                    stories.length === 0 ? (
-                        <EmptyState icon={BookOpen} message="No story templates yet" subtitle="Generate a story to create a template" />
-                    ) : (
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            {stories.map((story) => (
-                                <StoryCard
-                                    key={story.id}
-                                    story={story}
-                                    onToggleFavorite={() => toggleStoryFavorite(story.id)}
-                                    onDelete={() => handleDeleteStory(story.id)}
-                                    onView={() => navigate(`/library/story/${story.id}`)}
-                                    onUse={() => navigate('/video', { state: { generatedStory: story } })}
-                                />
-                            ))}
-                        </div>
-                    )
-                )}
-            </div>
+                        )
+                    )}
+                </>
+            )}
         </div>
     );
 }
 
-function EmptyState({ icon: Icon, message, subtitle }: { icon: React.ComponentType<{ className?: string }>, message: string, subtitle?: string }) {
+function TabButton({ active, onClick, icon: Icon, label, count, activeColor }: any) {
     return (
-        <div className="text-center py-12">
-            <div className="inline-flex items-center justify-center w-12 h-12 rounded-xl glass mb-4">
-                <Icon className="w-6 h-6 text-muted-foreground" />
+        <button
+            onClick={onClick}
+            className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-medium transition-all duration-300 relative overflow-hidden ${active
+                ? `${activeColor} text-white shadow-lg`
+                : 'text-muted-foreground hover:text-foreground hover:bg-white/5'
+                }`}
+        >
+            <Icon className="w-4 h-4 relative z-10" />
+            <span className="relative z-10">{label}</span>
+            {count !== undefined && (
+                <span className={`relative z-10 px-1.5 py-0.5 rounded-md text-[10px] font-bold ${active ? 'bg-white/20' : 'bg-black/10 dark:bg-white/10'}`}>
+                    {count}
+                </span>
+            )}
+        </button>
+    );
+}
+
+function EmptyState({ icon: Icon, message, subtitle, action, actionLabel }: any) {
+    return (
+        <div className="flex flex-col items-center justify-center py-20 animate-scaleIn">
+            <div className="w-20 h-20 rounded-3xl bg-muted/30 flex items-center justify-center mb-6 relative overflow-hidden group">
+                <div className="absolute inset-0 bg-gradient-to-br from-primary/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+                <Icon className="w-10 h-10 text-muted-foreground group-hover:text-primary transition-colors" />
             </div>
-            <p className="text-muted-foreground">{message}</p>
-            {subtitle && <p className="text-xs text-muted-foreground mt-1">{subtitle}</p>}
+            <h3 className="text-xl font-semibold text-foreground mb-2">{message}</h3>
+            <p className="text-muted-foreground text-center max-w-sm mb-8">{subtitle}</p>
+            {action && (
+                <Button onClick={action} className="btn-gradient shadow-lg shadow-primary/20">
+                    <Play className="w-4 h-4 mr-2" />
+                    {actionLabel}
+                </Button>
+            )}
         </div>
     );
 }
 
-// Generation Card
-function GenerationCard({ generation, onToggleFavorite, onDelete, onView }: { generation: Generation; onToggleFavorite: () => void; onDelete: () => void; onView: () => void }) {
+function GenerationCard({ generation, onToggleFavorite, onDelete, onView }: { generation: Generation; onToggleFavorite: () => void; onDelete: (e: React.MouseEvent) => void; onView: () => void }) {
     const isVideo = generation.generationType === 'video';
     const hasOutput = !!generation.outputUrl;
+    const [isHovered, setIsHovered] = useState(false);
 
     return (
-        <div onClick={onView} className="group rounded-xl border border-primary/10 bg-gradient-to-b from-primary/5 to-transparent overflow-hidden hover:border-primary/30 transition-all cursor-pointer">
-            <div className="relative aspect-video bg-black/20">
+        <Card
+            className="group overflow-hidden border-none glass-card hover:ring-2 hover:ring-primary/50 transition-all duration-300 cursor-pointer h-full flex flex-col"
+            onClick={onView}
+            onMouseEnter={() => setIsHovered(true)}
+            onMouseLeave={() => setIsHovered(false)}
+        >
+            <div className="relative aspect-video bg-black/40 overflow-hidden">
                 {hasOutput ? (
                     isVideo ? (
-                        <video src={generation.outputUrl} className="w-full h-full object-cover" muted poster={generation.thumbnailUrl} />
+                        <>
+                            <video
+                                src={generation.outputUrl}
+                                className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+                                muted
+                                loop
+                                poster={generation.thumbnailUrl}
+                                ref={(el) => {
+                                    if (el) isHovered ? el.play().catch(() => { }) : el.pause();
+                                }}
+                            />
+                            <div className="absolute inset-0 bg-black/20 group-hover:bg-black/10 transition-colors" />
+                        </>
                     ) : (
-                        <img src={generation.outputUrl} alt={generation.title} className="w-full h-full object-cover" />
+                        <img
+                            src={generation.outputUrl}
+                            alt={generation.title}
+                            className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+                        />
                     )
                 ) : (
-                    <div className="w-full h-full flex items-center justify-center">
-                        {isVideo ? <Film className="w-8 h-8 text-muted-foreground" /> : <ImageIcon className="w-8 h-8 text-muted-foreground" />}
+                    <div className="w-full h-full flex flex-col items-center justify-center gap-2 text-muted-foreground bg-muted/10">
+                        {isVideo ? <Film className="w-8 h-8 opacity-50" /> : <ImageIcon className="w-8 h-8 opacity-50" />}
+                        <span className="text-xs">Processing...</span>
                     </div>
                 )}
-                <div className={`absolute top-2 left-2 px-2 py-1 rounded-md text-xs font-medium ${isVideo ? 'bg-purple-500/80' : 'bg-blue-500/80'} text-white`}>
-                    {isVideo ? 'Video' : 'Image'}
-                </div>
-                {isVideo && generation.durationSeconds && (
-                    <div className="absolute bottom-2 right-2 px-2 py-1 rounded-md text-xs bg-black/60 text-white">{generation.durationSeconds}s</div>
-                )}
-            </div>
-            <div className="p-4">
-                <div className="flex justify-between items-start mb-2">
-                    <h3 className="font-semibold text-sm line-clamp-1">{generation.title}</h3>
-                    <button onClick={(e) => { e.stopPropagation(); onToggleFavorite(); }} className="hover:scale-110 transition">
-                        <Star className={`w-4 h-4 ${generation.isFavorite ? 'fill-yellow-400 text-yellow-400' : 'text-muted-foreground'}`} />
+
+                {/* Overlays */}
+                <div className="absolute top-0 right-0 p-2 opacity-0 group-hover:opacity-100 transition-opacity flex gap-2">
+                    <button
+                        onClick={(e) => { e.stopPropagation(); onToggleFavorite(); }}
+                        className="p-1.5 rounded-full bg-black/50 backdrop-blur-md text-white hover:bg-yellow-500 hover:text-white transition-colors"
+                    >
+                        <Star className={`w-4 h-4 ${generation.isFavorite ? 'fill-yellow-400 text-yellow-400' : ''}`} />
                     </button>
+                    <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                            <button className="p-1.5 rounded-full bg-black/50 backdrop-blur-md text-white hover:bg-white/20 transition-colors" onClick={e => e.stopPropagation()}>
+                                <MoreVertical className="w-4 h-4" />
+                            </button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="glass border-white/10">
+                            <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onView(); }}>
+                                <Eye className="w-4 h-4 mr-2" /> View Details
+                            </DropdownMenuItem>
+                            {hasOutput && (
+                                <DropdownMenuItem onClick={(e) => {
+                                    e.stopPropagation();
+                                    const link = document.createElement('a');
+                                    link.href = generation.outputUrl!;
+                                    link.download = `download-${generation.id}`;
+                                    link.click();
+                                }}>
+                                    <Download className="w-4 h-4 mr-2" /> Download
+                                </DropdownMenuItem>
+                            )}
+                            <DropdownMenuItem className="text-destructive focus:text-destructive" onClick={onDelete}>
+                                <Trash2 className="w-4 h-4 mr-2" /> Delete
+                            </DropdownMenuItem>
+                        </DropdownMenuContent>
+                    </DropdownMenu>
                 </div>
-                <p className="text-xs text-muted-foreground line-clamp-1 mb-2">{generation.prompt}</p>
-                <div className="flex items-center gap-2">
-                    <Button size="sm" variant="outline" className="flex-1 glass text-xs" onClick={(e) => { e.stopPropagation(); onView(); }}>
-                        <Eye className="w-3 h-3 mr-1" /> View
-                    </Button>
-                    <Button size="sm" variant="outline" className="glass text-destructive px-2" onClick={(e) => { e.stopPropagation(); onDelete(); }}>
-                        <Trash2 className="w-3 h-3" />
-                    </Button>
+
+                <div className={`absolute top-2 left-2 px-2 py-1 rounded-lg text-xs font-bold ${isVideo ? 'bg-gradient-to-r from-purple-500/90 to-blue-500/90' : 'bg-gradient-to-r from-pink-500/90 to-rose-500/90'} text-white backdrop-blur-md shadow-lg`}>
+                    {isVideo ? 'VIDEO' : 'IMAGE'}
                 </div>
             </div>
-        </div>
+
+            <div className="p-4 flex-1 flex flex-col">
+                <div className="flex justify-between items-start mb-1">
+                    <h3 className="font-semibold text-base line-clamp-1 group-hover:text-primary transition-colors">{generation.title}</h3>
+                </div>
+                <p className="text-xs text-muted-foreground line-clamp-2 mb-3 flex-1">{generation.prompt}</p>
+
+                <div className="flex items-center justify-between mt-auto text-xs text-muted-foreground border-t border-white/5 pt-3">
+                    <span className="flex items-center gap-1">
+                        <Clock className="w-3 h-3" />
+                        {new Date(generation.createdAt).toLocaleDateString()}
+                    </span>
+                    {isVideo && generation.durationSeconds && (
+                        <span className="font-mono bg-white/5 px-1.5 py-0.5 rounded">
+                            {generation.durationSeconds}s
+                        </span>
+                    )}
+                </div>
+            </div>
+        </Card>
     );
 }
 
-// Scene Card
-function SceneCard({ scene, onToggleFavorite, onDelete, onView, onUse }: { scene: SavedScene; onToggleFavorite: () => void; onDelete: () => void; onView: () => void; onUse: () => void }) {
+function SceneCard({ scene, onToggleFavorite, onDelete, onView, onUse }: { scene: SavedScene; onToggleFavorite: () => void; onDelete: (e: React.MouseEvent) => void; onView: () => void; onUse: () => void }) {
     return (
-        <div onClick={onView} className="group rounded-xl border border-primary/10 bg-gradient-to-b from-primary/5 to-transparent p-4 hover:border-primary/30 transition-all cursor-pointer">
-            <div className="flex justify-between items-start mb-2">
-                <div className="flex items-center gap-2">
-                    <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-purple-500 to-blue-500 flex items-center justify-center">
-                        <Sparkles className="w-4 h-4 text-white" />
+        <Card
+            onClick={onView}
+            className="group border-none glass-card hover:ring-2 hover:ring-purple-500/50 transition-all duration-300 cursor-pointer h-full flex flex-col p-5"
+        >
+            <div className="flex justify-between items-start mb-3">
+                <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-purple-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-purple-500/20 group-hover:scale-110 transition-transform">
+                        <Sparkles className="w-5 h-5 text-white" />
                     </div>
-                    <h3 className="font-semibold text-sm line-clamp-1">{scene.title}</h3>
+                    <div>
+                        <h3 className="font-semibold text-base line-clamp-1 group-hover:text-purple-400 transition-colors">{scene.title}</h3>
+                        <p className="text-xs text-muted-foreground">Scene Template</p>
+                    </div>
                 </div>
-                <button onClick={(e) => { e.stopPropagation(); onToggleFavorite(); }}>
+                <button
+                    onClick={(e) => { e.stopPropagation(); onToggleFavorite(); }}
+                    className="p-1.5 rounded-full hover:bg-white/10 transition-colors"
+                >
                     <Star className={`w-4 h-4 ${scene.isFavorite ? 'fill-yellow-400 text-yellow-400' : 'text-muted-foreground'}`} />
                 </button>
             </div>
-            <p className="text-xs text-muted-foreground line-clamp-2 mb-3">"{scene.dialogo}"</p>
-            <div className="flex items-center gap-2 text-xs text-muted-foreground mb-3">
-                <span><Clock className="w-3 h-3 inline mr-1" />{scene.suggestedDuration}s</span>
-                <span><RefreshCw className="w-3 h-3 inline mr-1" />{scene.timesUsed}x</span>
+
+            <div className="flex-1 bg-white/5 rounded-xl p-3 mb-4 backdrop-blur-sm border border-white/5">
+                <p className="text-xs text-muted-foreground line-clamp-3 italic">"{scene.dialogo}"</p>
             </div>
-            <div className="flex gap-2">
-                <Button size="sm" className="flex-1 bg-gradient-to-r from-green-500 to-emerald-500 text-white text-xs" onClick={(e) => { e.stopPropagation(); onUse(); }}>
-                    <Play className="w-3 h-3 mr-1" /> Use Free
+
+            <div className="flex items-center gap-4 text-xs text-muted-foreground mb-4">
+                <span className="flex items-center gap-1"><Clock className="w-3 h-3" /> {scene.suggestedDuration}s</span>
+                <span className="flex items-center gap-1"><RefreshCw className="w-3 h-3" /> Used {scene.timesUsed} times</span>
+            </div>
+
+            <div className="flex gap-2.5 mt-auto">
+                <Button size="sm" className="flex-1 bg-purple-500/10 hover:bg-purple-500/20 text-purple-400 border border-purple-500/20" onClick={(e) => { e.stopPropagation(); onUse(); }}>
+                    <Play className="w-3 h-3 mr-1.5" /> Use Template
                 </Button>
-                <Button size="sm" variant="outline" className="glass text-destructive px-2" onClick={(e) => { e.stopPropagation(); onDelete(); }}>
-                    <Trash2 className="w-3 h-3" />
+                <Button size="sm" variant="ghost" className="px-2 text-muted-foreground hover:text-destructive hover:bg-destructive/10" onClick={onDelete}>
+                    <Trash2 className="w-4 h-4" />
                 </Button>
             </div>
-        </div>
+        </Card>
     );
 }
 
-// Story Card
-function StoryCard({ story, onToggleFavorite, onDelete, onView, onUse }: { story: SavedStory; onToggleFavorite: () => void; onDelete: () => void; onView: () => void; onUse: () => void }) {
+function StoryCard({ story, onToggleFavorite, onDelete, onView, onUse }: { story: SavedStory; onToggleFavorite: () => void; onDelete: (e: React.MouseEvent) => void; onView: () => void; onUse: () => void }) {
     return (
-        <div onClick={onView} className="group rounded-xl border border-primary/10 bg-gradient-to-b from-primary/5 to-transparent p-4 hover:border-primary/30 transition-all cursor-pointer">
-            <div className="flex justify-between items-start mb-2">
-                <div className="flex items-center gap-2">
-                    <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-amber-500 to-orange-500 flex items-center justify-center">
-                        <BookOpen className="w-4 h-4 text-white" />
+        <Card
+            onClick={onView}
+            className="group border-none glass-card hover:ring-2 hover:ring-amber-500/50 transition-all duration-300 cursor-pointer h-full flex flex-col p-5"
+        >
+            <div className="flex justify-between items-start mb-3">
+                <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center shadow-lg shadow-amber-500/20 group-hover:scale-110 transition-transform">
+                        <BookOpen className="w-5 h-5 text-white" />
                     </div>
-                    <h3 className="font-semibold text-sm line-clamp-1">{story.storyTitle}</h3>
+                    <div>
+                        <h3 className="font-semibold text-base line-clamp-1 group-hover:text-amber-400 transition-colors">{story.storyTitle}</h3>
+                        <p className="text-xs text-muted-foreground">Story Template</p>
+                    </div>
                 </div>
-                <button onClick={(e) => { e.stopPropagation(); onToggleFavorite(); }}>
+                <button
+                    onClick={(e) => { e.stopPropagation(); onToggleFavorite(); }}
+                    className="p-1.5 rounded-full hover:bg-white/10 transition-colors"
+                >
                     <Star className={`w-4 h-4 ${story.isFavorite ? 'fill-yellow-400 text-yellow-400' : 'text-muted-foreground'}`} />
                 </button>
             </div>
-            <p className="text-xs text-muted-foreground line-clamp-2 mb-3">{story.storyDescription}</p>
-            <div className="flex items-center gap-2 text-xs text-muted-foreground mb-3">
-                <span className="px-2 py-1 rounded-full glass"><Film className="w-3 h-3 inline mr-1" />{story.segmentCount} segments</span>
-                <span><RefreshCw className="w-3 h-3 inline mr-1" />{story.timesUsed}x</span>
+
+            <div className="flex-1 bg-white/5 rounded-xl p-3 mb-4 backdrop-blur-sm border border-white/5">
+                <p className="text-xs text-muted-foreground line-clamp-3">{story.storyDescription}</p>
             </div>
-            <div className="flex gap-2">
-                <Button size="sm" className="flex-1 bg-gradient-to-r from-green-500 to-emerald-500 text-white text-xs" onClick={(e) => { e.stopPropagation(); onUse(); }}>
-                    <Play className="w-3 h-3 mr-1" /> Use Free
+
+            <div className="flex items-center gap-4 text-xs text-muted-foreground mb-4">
+                <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-white/5"><Film className="w-3 h-3" /> {story.segmentCount} segments</span>
+                <span className="flex items-center gap-1"><RefreshCw className="w-3 h-3" /> Used {story.timesUsed} times</span>
+            </div>
+
+            <div className="flex gap-2.5 mt-auto">
+                <Button size="sm" className="flex-1 bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/20" onClick={(e) => { e.stopPropagation(); onUse(); }}>
+                    <Play className="w-3 h-3 mr-1.5" /> Use Template
                 </Button>
-                <Button size="sm" variant="outline" className="glass text-destructive px-2" onClick={(e) => { e.stopPropagation(); onDelete(); }}>
-                    <Trash2 className="w-3 h-3" />
+                <Button size="sm" variant="ghost" className="px-2 text-muted-foreground hover:text-destructive hover:bg-destructive/10" onClick={onDelete}>
+                    <Trash2 className="w-4 h-4" />
                 </Button>
             </div>
-        </div>
+        </Card>
     );
 }
 

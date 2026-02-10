@@ -2,7 +2,7 @@ import { Routes, Route } from 'react-router-dom';
 import { ApplicationProvider } from '@/context/ApplicationContext';
 import { AuthProvider } from '@/context/AuthContext';
 import { CreditsProvider } from '@/context/CreditsContext';
-import { AppLayout } from '@/components/AppLayout';
+import { MainLayout } from '@/components/layout/MainLayout';
 import { Landing } from '@/components/Landing';
 import { VideoGenerator } from '@/components/VideoGenerator';
 import { ImageGenerator } from '@/components/ImageGenerator';
@@ -28,7 +28,7 @@ function App() {
             {/* Protected app routes */}
             <Route element={
               <ProtectedRoute>
-                <AppLayout />
+                <MainLayout />
               </ProtectedRoute>
             }>
               <Route path="/" element={<Landing />} />

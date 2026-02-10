@@ -4,6 +4,9 @@ import { useEffect, useState, useRef } from 'react';
 import { themeStorage } from '@/utils/indexedDB';
 import { useAuth } from '@/context/AuthContext';
 import { useCredits } from '@/context/CreditsContext';
+import { MobileBottomNav } from './AppLayout/MobileBottomNav';
+import { MobileHeader } from './AppLayout/MobileHeader';
+import { RealtimeTest } from './RealtimeTest';
 
 export function AppLayout() {
     const [theme, setTheme] = useState<'light' | 'dark'>('dark');
@@ -52,8 +55,9 @@ export function AppLayout() {
 
     return (
         <div className="min-h-screen flex flex-col">
-            {/* Header */}
-            <header className="w-full py-4 px-6 flex items-center justify-between">
+        <RealtimeTest />
+            {/* Desktop Header */}
+            <header className="hidden lg:flex w-full py-4 px-6 items-center justify-between">
                 {/* Logo */}
                 <NavLink to="/" className="flex items-center gap-2 hover:opacity-80 transition-opacity">
                     <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-purple-500 to-blue-500 flex items-center justify-center">
@@ -202,10 +206,16 @@ export function AppLayout() {
                 </div>
             </header>
 
+            {/* Mobile Header */}
+            <MobileHeader theme={theme} onToggleTheme={toggleTheme} />
+
             {/* Main Content */}
-            <main className="flex-1 w-full px-4 pb-12">
+            <main className="flex-1 w-full px-4 pb-12 lg:pb-12 pb-20">
                 <Outlet />
             </main>
+
+            {/* Mobile Bottom Navigation */}
+            <MobileBottomNav />
 
             {/* Footer */}
             <footer className="w-full py-4 text-center text-xs text-muted-foreground">
