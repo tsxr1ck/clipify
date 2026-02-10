@@ -3,9 +3,9 @@
 export const USD_TO_MXN = 17.5; // Update from currency API in production
 
 export const BASE_COSTS_USD = {
-    styleExtraction: 0.01,
-    imageGeneration: 0.02,
-    videoPerSecond: 0.05,
+    styleExtraction: 0.01,   // Gemini Flash (very cheap, keeping safe margin)
+    imageGeneration: 0.04,   // Imagen 3 (~$0.03-0.04)
+    videoPerSecond: 0.60,    // Veo (~$0.50-$0.75/sec)
 } as const;
 
 export const MARKUP_PERCENTAGE = 50; // 50% profit margin

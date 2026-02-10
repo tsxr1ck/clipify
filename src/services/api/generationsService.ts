@@ -68,6 +68,7 @@ export interface GenerationListResponse {
 
 export interface CreateGenerationData {
     characterId?: string;
+    image?: string;
     styleId?: string;
     title: string;
     description?: string;

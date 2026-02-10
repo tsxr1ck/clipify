@@ -4,6 +4,7 @@ import apiClient, { getErrorMessage } from './client';
 export interface CreditsBalance {
     balance: number;
     currency: string;
+    lowBalanceThreshold: number;
 }
 
 export interface CreditTransaction {
@@ -16,6 +17,7 @@ export interface CreditTransaction {
     generationId?: string;
     paymentId?: string;
     createdAt: string;
+    lowBalanceThreshold: number;
 }
 
 export interface TransactionsListParams {
@@ -104,10 +106,11 @@ export const creditsService = {
         try {
             const response = await apiClient.get('/credits/packages');
             return response.data.packages.map((pkg: any) => ({
-                ...pkg,
-                amountMxn: Number(pkg.amountMxn),
-                priceMxn: Number(pkg.amountMxn), // Assuming price is same as amount for now or check backend
-                bonusMxn: Number(pkg.bonusMxn || 0),
+                id: pkg.id,
+                name: pkg.name,
+                amountMxn: Number(pkg.amountMXN), // Backend sends amountMXN (uppercase)
+                priceMxn: Number(pkg.amountMXN),
+                bonusMxn: pkg.bonusPercent ? Number(pkg.amountMXN * pkg.bonusPercent / 100) : 0,
             }));
         } catch (error) {
             throw new Error(getErrorMessage(error));

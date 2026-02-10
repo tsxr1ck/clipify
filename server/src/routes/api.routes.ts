@@ -41,6 +41,10 @@ import {
     purchaseCreditsSchema,
     listTransactionsSchema,
 } from '../controllers/credits.controller.js';
+import {
+    paymentController,
+    createPreferenceSchema,
+} from '../controllers/payment.controller.js';
 
 const router = Router();
 
@@ -91,6 +95,12 @@ router.get('/credits/packages', creditsController.getPackages);
 router.post('/credits/purchase', authenticate, validateBody(purchaseCreditsSchema), creditsController.purchase);
 router.get('/credits/usage-summary', authenticate, creditsController.getUsageSummary);
 
+// ==================== PAYMENTS (Mercado Pago) ====================
+router.post('/payments/create-preference', authenticate, validateBody(createPreferenceSchema), paymentController.createPreference);
+router.post('/payments/process-brick', authenticate, paymentController.processBrick);
+router.post('/payments/webhook', paymentController.webhook); // Public - MP calls this
+router.get('/payments/:id', authenticate, paymentController.getDetails);
+
 // ==================== ADMIN ====================
 router.get('/admin/stats', authenticate, authorize('admin'), async (_req, res) => {
     // TODO: Implement admin stats
@@ -99,9 +109,20 @@ router.get('/admin/stats', authenticate, authorize('admin'), async (_req, res) =
 
 // ==================== UPLOADS ====================
 import { uploadController } from '../controllers/upload.controller.js';
-
 router.post('/upload/style-image', authenticate, uploadController.uploadStyleImage);
 router.post('/upload/character-image', authenticate, uploadController.uploadCharacterImage);
 router.post('/upload/generation', authenticate, uploadController.uploadGeneration);
+
+// ==================== AI GENERATION ====================
+import { aiController } from '../controllers/ai.controller.js';
+router.post('/ai/analyze-character', authenticate, aiController.analyzeCharacter);
+router.post('/ai/extract-style', authenticate, aiController.extractStyle);
+router.post('/ai/generate-image', authenticate, aiController.generateImage);
+router.post('/ai/generate-video', authenticate, aiController.generateVideo);
+router.post('/ai/generate-text', authenticate, aiController.generateText);
+
+// ==================== SCENES & STORIES ====================
+import sceneRoutes from './scene.routes.js';
+router.use('/', sceneRoutes);
 
 export default router;

@@ -40,9 +40,13 @@ export const characterController = {
      */
     async list(req: AuthRequest, res: Response): Promise<void> {
         try {
-            const { page: pageStr, limit: limitStr, styleId, favorites: favoritesStr } = req.query as {
-                page?: string; limit?: string; styleId?: string; favorites?: string
-            };
+            const { page: pageRaw, limit: limitRaw, styleId: styleIdRaw, favorites: favoritesRaw } = req.query;
+
+            const pageStr = typeof pageRaw === 'string' ? pageRaw : undefined;
+            const limitStr = typeof limitRaw === 'string' ? limitRaw : undefined;
+            const styleId = typeof styleIdRaw === 'string' ? styleIdRaw : undefined;
+            const favoritesStr = typeof favoritesRaw === 'string' ? favoritesRaw : undefined;
+
             const userId = req.user!.userId;
 
             // Parse query params
@@ -103,11 +107,11 @@ export const characterController = {
      */
     async get(req: AuthRequest, res: Response): Promise<void> {
         try {
-            const { id } = req.params;
+            const { id } = req.params as { id: string };
             const userId = req.user!.userId;
 
             const character = await prisma.character.findFirst({
-                where: { id, userId },
+                where: { id: id as string, userId: userId as string },
                 include: {
                     style: {
                         select: { id: true, name: true, keywords: true },
@@ -145,7 +149,7 @@ export const characterController = {
     async create(req: AuthRequest, res: Response): Promise<void> {
         try {
             const userId = req.user!.userId;
-            const data = req.body;
+            const data = createCharacterSchema.parse(req.body);
 
             // Verify style ownership
             const style = await prisma.style.findFirst({
@@ -160,7 +164,19 @@ export const characterController = {
             const character = await prisma.character.create({
                 data: {
                     userId,
-                    ...data,
+                    styleId: data.styleId,
+                    name: data.name,
+                    description: data.description,
+                    prompt: data.prompt,
+                    combinedPrompt: data.combinedPrompt,
+                    imageUrl: data.imageUrl,
+                    imageKey: data.imageKey,
+                    thumbnailUrl: data.thumbnailUrl,
+                    aspectRatio: data.aspectRatio,
+                    width: data.width,
+                    height: data.height,
+                    generationParams: data.generationParams as any,
+                    tags: data.tags,
                 },
             });
 
@@ -182,9 +198,9 @@ export const characterController = {
      */
     async update(req: AuthRequest, res: Response): Promise<void> {
         try {
-            const { id } = req.params;
+            const { id } = req.params as { id: string };
             const userId = req.user!.userId;
-            const data = req.body;
+            const data = updateCharacterSchema.parse(req.body);
 
             const existing = await prisma.character.findFirst({
                 where: { id, userId },
@@ -212,7 +228,7 @@ export const characterController = {
      */
     async delete(req: AuthRequest, res: Response): Promise<void> {
         try {
-            const { id } = req.params;
+            const { id } = req.params as { id: string };
             const userId = req.user!.userId;
 
             const existing = await prisma.character.findFirst({

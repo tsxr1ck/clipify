@@ -13,6 +13,7 @@ type Action =
     | { type: 'SET_SELECTED_CHARACTER'; characterId: string | null }
     | { type: 'SET_LOADING'; isLoading: boolean }
     | { type: 'SET_ERROR'; error: string | null }
+    | { type: 'SET_THEME'; theme: string }
     | { type: 'RESET' };
 
 // Initial state
@@ -30,6 +31,7 @@ const initialState: AppState = {
     selectedCharacterId: null,
     isLoading: false,
     error: null,
+    theme: 'light',
 };
 
 // Reducer
@@ -82,6 +84,9 @@ function appReducer(state: AppState, action: Action): AppState {
         case 'SET_ERROR':
             return { ...state, error: action.error, isLoading: false };
 
+        case 'SET_THEME':
+            return { ...state, theme: action.theme };
+
         case 'RESET':
             return initialState;
 
@@ -104,6 +109,8 @@ interface ApplicationContextType {
     setSelectedCharacter: (characterId: string | null) => void;
     setLoading: (isLoading: boolean) => void;
     setError: (error: string | null) => void;
+    setTheme: (theme: string) => void;
+    theme: string;
 }
 
 // Create context
@@ -142,6 +149,7 @@ export function ApplicationProvider({ children }: { children: ReactNode }) {
             const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
             const theme = savedTheme || (prefersDark ? 'dark' : 'light');
             document.documentElement.classList.toggle('dark', theme === 'dark');
+            dispatch({ type: 'SET_THEME', theme });
 
             setIsInitialized(true);
         }
@@ -199,6 +207,12 @@ export function ApplicationProvider({ children }: { children: ReactNode }) {
         dispatch({ type: 'SET_ERROR', error });
     };
 
+    const setTheme = (theme: string) => {
+        dispatch({ type: 'SET_THEME', theme });
+        document.documentElement.classList.toggle('dark', theme === 'dark');
+        themeStorage.set(theme as 'light' | 'dark');
+    };
+
     const value: ApplicationContextType = {
         state,
         dispatch,
@@ -211,6 +225,8 @@ export function ApplicationProvider({ children }: { children: ReactNode }) {
         setSelectedCharacter,
         setLoading,
         setError,
+        setTheme,
+        theme: state.theme || 'light',
     };
 
     // Show loading while initializing

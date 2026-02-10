@@ -60,6 +60,17 @@ export interface VideoSceneConfig {
     duration: VideoDuration;
 }
 
+// Scene Builder AI Result
+export interface SceneBuilderResult {
+    escena: string;
+    fondo?: string;
+    accion: string;
+    dialogo: string;
+    voiceStyle?: string;
+    movimiento?: string;
+    suggestedDuration: VideoDuration;
+}
+
 // Generated Video (in localStorage - optional)
 export interface GeneratedVideo {
     id: string;
@@ -79,6 +90,7 @@ export interface AppState {
     selectedCharacterId: string | null;
     isLoading: boolean;
     error: string | null;
+    theme?: string;
 }
 
 // API Response Types

@@ -8,6 +8,8 @@ const BUCKETS = {
     STYLES: 'styles',
     CHARACTERS: 'characters',
     GENERATIONS: 'generations',
+    IMAGES: 'images',
+    VIDEOS: 'videos',
 } as const;
 
 export interface UploadResult {

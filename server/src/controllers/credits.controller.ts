@@ -3,7 +3,7 @@ import { z } from 'zod';
 import type { AuthRequest } from '../middleware/auth.js';
 import { prisma } from '../config/database.js';
 import { CREDIT_PACKAGES, getPackageWithBonus } from '../config/pricing.js';
-import { Decimal } from '@prisma/client/runtime/library';
+import { Prisma } from '@prisma/client';
 
 // Validation schemas
 export const purchaseCreditsSchema = z.object({
@@ -53,9 +53,16 @@ export const creditsController = {
      */
     async getTransactions(req: AuthRequest, res: Response): Promise<void> {
         try {
-            const { page: pageStr, limit: limitStr, type } = req.query as {
-                page?: string; limit?: string; type?: string
-            };
+            const {
+                page: pageRaw,
+                limit: limitRaw,
+                type: typeRaw,
+            } = req.query;
+
+            const pageStr = typeof pageRaw === 'string' ? pageRaw : undefined;
+            const limitStr = typeof limitRaw === 'string' ? limitRaw : undefined;
+            const type = typeof typeRaw === 'string' ? typeRaw : undefined;
+
             const userId = req.user!.userId;
 
             // Parse query params
@@ -128,7 +135,7 @@ export const creditsController = {
     async purchase(req: AuthRequest, res: Response): Promise<void> {
         try {
             const userId = req.user!.userId;
-            const { packageId, paymentId, paymentMethod } = req.body;
+            const { packageId, paymentId, paymentMethod } = purchaseCreditsSchema.parse(req.body);
 
             const packageInfo = getPackageWithBonus(packageId);
             if (!packageInfo) {
@@ -143,7 +150,7 @@ export const creditsController = {
             }
 
             const balanceBefore = credits.balanceMxn;
-            const balanceAfter = new Decimal(Number(balanceBefore) + packageInfo.totalMXN);
+            const balanceAfter = new Prisma.Decimal(Number(balanceBefore) + packageInfo.totalMXN);
 
             // Update credits
             await prisma.credits.update({
@@ -159,7 +166,7 @@ export const creditsController = {
                 data: {
                     userId,
                     transactionType: 'purchase',
-                    amountMxn: new Decimal(packageInfo.amountMXN),
+                    amountMxn: new Prisma.Decimal(packageInfo.amountMXN),
                     balanceBeforeMxn: balanceBefore,
                     balanceAfterMxn: balanceAfter,
                     paymentId,
@@ -175,8 +182,8 @@ export const creditsController = {
                     data: {
                         userId,
                         transactionType: 'bonus',
-                        amountMxn: new Decimal(packageInfo.bonusMXN),
-                        balanceBeforeMxn: new Decimal(Number(balanceBefore) + packageInfo.amountMXN),
+                        amountMxn: new Prisma.Decimal(packageInfo.bonusMXN),
+                        balanceBeforeMxn: new Prisma.Decimal(Number(balanceBefore) + packageInfo.amountMXN),
                         balanceAfterMxn: balanceAfter,
                         description: `Bonus credits for ${packageId} package`,
                         processedAt: new Date(),

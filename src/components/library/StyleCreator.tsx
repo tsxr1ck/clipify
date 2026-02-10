@@ -9,7 +9,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
-import { useApiKey } from '@/context/ApplicationContext';
+// import { useApiKey } from '@/context/ApplicationContext'; // Removed
 import { fileToBase64 } from '@/utils/imageProcessing';
 import { extractStyleFromImage } from '@/services/api/geminiService';
 import { stylesService, uploadService, type Style } from '@/services/api';
@@ -23,7 +23,8 @@ interface StyleCreatorProps {
 }
 
 export function StyleCreator({ open, onClose, onStyleCreated }: StyleCreatorProps) {
-    const { key: apiKey } = useApiKey();
+    // const { key: apiKey } = useApiKey(); // Removed
+    const apiKey = 'dummy-key'; // Backend handles auth now
 
     const [styleName, setStyleName] = useState('');
     const [uploadedImage, setUploadedImage] = useState<{
@@ -85,7 +86,6 @@ export function StyleCreator({ open, onClose, onStyleCreated }: StyleCreatorProp
 
         try {
             const result = await extractStyleFromImage(
-                apiKey,
                 uploadedImage.base64,
                 uploadedImage.mimeType
             );

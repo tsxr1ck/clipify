@@ -1,4 +1,3 @@
-import { useState, useEffect } from 'react';
 import {
     ImageIcon,
     Loader2,
@@ -9,13 +8,17 @@ import {
     User,
     DollarSign,
     ArrowRightLeft,
+    Wand2,
+    ChevronDown,
 } from 'lucide-react';
+import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
+import { useAuth } from '@/context/AuthContext';
 import { useApplication, useApiKey } from '@/context/ApplicationContext';
-import { stylesService, charactersService } from '@/services/api';
+import { stylesService, charactersService, sceneBuilderService, sceneBuilderProService } from '@/services/api';
 import type { Style } from '@/services/api/stylesService';
 import type { Character } from '@/services/api/charactersService';
 import { base64ToDataUrl } from '@/utils/imageProcessing';
@@ -26,6 +29,7 @@ import { ImagePreviewModal } from '@/components/shared/ImagePreviewModal';
 import { StyleSelectorModal } from '@/components/shared/StyleSelectorModal';
 import { CharacterSelectorModal } from '@/components/shared/CharacterSelectorModal';
 import type { AspectRatio } from '@/types';
+import { useEffect, useState } from 'react';
 
 const aspectRatioOptions: { value: AspectRatio; label: string }[] = [
     { value: '1:1', label: '1:1' },
@@ -40,6 +44,7 @@ const IMAGEN_COST_PER_IMAGE_USD = 0.02;
 const USD_TO_MXN = 17.5;
 
 export function Step3_ImageGeneration() {
+    const { user } = useAuth();
     const { state, prevStep, setStep, setSelectedStyle: setGlobalStyleId, setSelectedCharacter: setGlobalCharacterId } = useApplication();
     const { key: apiKey } = useApiKey();
 
@@ -50,6 +55,15 @@ export function Step3_ImageGeneration() {
     // Modal state for swapping style/character
     const [showStyleSelector, setShowStyleSelector] = useState(false);
     const [showCharacterSelector, setShowCharacterSelector] = useState(false);
+
+    // AI Scene Builder state
+    const [showSceneBuilder, setShowSceneBuilder] = useState(true);
+    const [aiPrompt, setAiPrompt] = useState('');
+    const [isGeneratingScene, setIsGeneratingScene] = useState(false);
+
+    // Pro Builder State
+    const [useProBuilder, setUseProBuilder] = useState(false);
+    const canUseProBuilder = user?.id === 'fb430091-ddba-4aa7-82d6-228528124087';
 
     // Form state
     const [escena, setEscena] = useState('');
@@ -104,6 +118,44 @@ export function Step3_ImageGeneration() {
         setGlobalCharacterId(newCharacter.id);
     };
 
+    const handleGenerateScene = async () => {
+        if (!aiPrompt.trim()) return;
+
+        setIsGeneratingScene(true);
+        try {
+            const result = useProBuilder
+                ? await sceneBuilderProService.generateImageSceneConfig(aiPrompt)
+                : await sceneBuilderService.generateImageSceneConfig(aiPrompt);
+
+            // Auto-fill form
+            setEscena(result.scene.escena);
+
+            // Handle Pro fields / extra details by appending to fondo
+            let fondoText = result.scene.fondo || '';
+
+            // If it's the Pro result or just has extra fields, append them
+            // We cast to any to safely access potential pro fields without strict type guards in generic flow
+            const scene: any = result.scene;
+
+            if (scene.lighting) fondoText += `\n\n[Lighting]: ${scene.lighting}`;
+            if (scene.camera) fondoText += `\n[Camera]: ${scene.camera}`;
+            if (scene.condicionesFisicas) fondoText += `\n[Physical]: ${scene.condicionesFisicas}`;
+            if (scene.contextoInvisible) fondoText += `\n[Context]: ${scene.contextoInvisible}`;
+            if (scene.defectosTecnicos) fondoText += `\n[Defects]: ${scene.defectosTecnicos}`;
+
+            setFondo(fondoText.trim());
+            setAccion(result.scene.accion);
+
+            toast.success('Scene generated successfully!');
+            setShowSceneBuilder(false); // Collapse after success
+        } catch (err) {
+            console.error('Failed to generate scene:', err);
+            toast.error(err instanceof Error ? err.message : 'Failed to generate scene');
+        } finally {
+            setIsGeneratingScene(false);
+        }
+    };
+
     const isFormValid = escena.trim() && accion.trim();
 
     const handleGenerate = async () => {
@@ -139,10 +191,14 @@ export function Step3_ImageGeneration() {
                 base64: result.data,
                 mimeType: 'image/png',
             });
+
             setProgressMessage('');
+            toast.success('Image generated successfully!');
         } catch (err) {
-            setError(err instanceof Error ? err.message : 'Failed to generate image');
+            const errorMessage = err instanceof Error ? err.message : 'Failed to generate image';
+            setError(errorMessage);
             setProgressMessage('');
+            toast.error(errorMessage);
         } finally {
             setIsGenerating(false);
         }
@@ -289,7 +345,74 @@ export function Step3_ImageGeneration() {
                 </div>
 
                 {/* Column 2: Form Inputs */}
-                <div className="lg:col-span-5">
+                <div className="lg:col-span-5 space-y-4">
+                    {/* AI Scene Builder */}
+                    <div className="glass-card p-5 border border-primary/20">
+                        <button
+                            onClick={() => setShowSceneBuilder(!showSceneBuilder)}
+                            className="w-full flex items-center justify-between text-left group"
+                        >
+                            <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
+                                <Sparkles className="w-4 h-4 text-primary animate-pulse" />
+                                <span className="gradient-text">AI Scene Builder</span>
+                            </h3>
+                            <ChevronDown className={`w-4 h-4 text-muted-foreground transition-transform duration-200 ${showSceneBuilder ? 'rotate-180' : ''}`} />
+                        </button>
+
+                        <div className={`grid transition-all duration-300 ease-in-out ${showSceneBuilder ? 'grid-rows-[1fr] opacity-100 mt-4' : 'grid-rows-[0fr] opacity-0'}`}>
+                            <div className="overflow-hidden">
+                                {canUseProBuilder && (
+                                    <div className="flex justify-center mb-3">
+                                        <div
+                                            className="flex items-center gap-2 bg-amber-500/10 border border-amber-500/20 px-3 py-1 rounded-full cursor-pointer hover:bg-amber-500/20 transition-colors"
+                                            onClick={() => setUseProBuilder(!useProBuilder)}
+                                        >
+                                            <span className="text-xs font-bold text-amber-600 dark:text-amber-400 uppercase tracking-wider">
+                                                Hyper-Realism
+                                            </span>
+                                            <div className={`w-8 h-4 rounded-full p-0.5 transition-colors ${useProBuilder ? 'bg-amber-500' : 'bg-muted'}`}>
+                                                <div className={`w-3 h-3 bg-white rounded-full shadow-sm transition-transform ${useProBuilder ? 'translate-x-4' : 'translate-x-0'}`} />
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+
+                                <p className="text-xs text-muted-foreground mb-3 text-center">
+                                    Describe your image idea and let AI create the perfect scene configuration.
+                                </p>
+                                <div className="space-y-3">
+                                    <Textarea
+                                        value={aiPrompt}
+                                        onChange={(e) => setAiPrompt(e.target.value)}
+                                        placeholder="E.g., A cyberpunk street food vendor serving neon noodles in rain..."
+                                        className="glass-input min-h-[80px] text-sm"
+                                        disabled={isGeneratingScene}
+                                    />
+                                    <div className="flex justify-end">
+                                        <Button
+                                            onClick={handleGenerateScene}
+                                            disabled={!aiPrompt.trim() || isGeneratingScene}
+                                            size="sm"
+                                            className="bg-primary/20 hover:bg-primary/30 text-primary border border-primary/20"
+                                        >
+                                            {isGeneratingScene ? (
+                                                <>
+                                                    <Loader2 className="w-3 h-3 mr-2 animate-spin" />
+                                                    Designing...
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <Wand2 className="w-3 h-3 mr-2" />
+                                                    Auto-Fill Scene
+                                                </>
+                                            )}
+                                        </Button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
                     <div className="glass-card p-5">
                         <h3 className="text-sm font-semibold text-foreground mb-4 flex items-center gap-2">
                             🖼️ Image Configuration

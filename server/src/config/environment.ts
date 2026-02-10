@@ -23,8 +23,12 @@ const envSchema = z.object({
     RESEND_API_KEY: z.string().optional(),
     FROM_EMAIL: z.string().email().optional(),
 
+    // AI
+    GOOGLE_GENAI_API_KEY: z.string().min(1),
+    GOOGLE_CLOUD_PROJECT_ID: z.string().min(1),
+
     // App
-    APP_URL: z.string().url().default('http://localhost:5173'),
+    APP_URL: z.string().url().default('https://clips.sonorodigital.com.mx/'),
     NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
     PORT: z.string().default('3001'),
 });

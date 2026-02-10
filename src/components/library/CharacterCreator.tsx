@@ -10,10 +10,11 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { useApiKey } from '@/context/ApplicationContext';
+// import { useApiKey } from '@/context/ApplicationContext'; // Removed
 import { generateCharacterImageWithLogging, analyzeCharacterImageWithLogging } from '@/services/api/geminiService';
 import { charactersService, uploadService, type Character, type Style } from '@/services/api';
 import { ErrorMessage } from '@/components/shared/ErrorMessage';
+import { DetailedCharacterAnalysis } from '@/components/shared/DetailedCharacterAnalysis';
 import type { AspectRatio } from '@/types';
 
 interface CharacterCreatorProps {
@@ -39,7 +40,8 @@ export function CharacterCreator({
     onCharacterCreated,
     selectedStyle,
 }: CharacterCreatorProps) {
-    const { key: apiKey } = useApiKey();
+    // const { key: apiKey } = useApiKey(); // Removed
+    const apiKey = 'dummy-key'; // Backend handles auth now
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     // Mode toggle
@@ -448,23 +450,32 @@ export function CharacterCreator({
 
                             {/* Step 2: Edit Description (after analysis) */}
                             {(imageWorkflowStep === 'edit' || imageWorkflowStep === 'generating' || imageWorkflowStep === 'done') && (
-                                <div className="space-y-2">
+                                <div className="space-y-4">
                                     <Label htmlFor="extracted-description">
-                                        Step 2: Character Description (edit if needed)
+                                        Step 2: Character Analysis & Description
                                     </Label>
-                                    <Textarea
-                                        id="extracted-description"
-                                        value={characterDescription}
-                                        onChange={(e) => setCharacterDescription(e.target.value)}
-                                        placeholder="Character description extracted from image..."
-                                        className="glass-input min-h-[100px]"
-                                        disabled={imageWorkflowStep === 'generating'}
-                                    />
+
+                                    {/* Detailed Analysis View */}
                                     {extractedDescription && (
-                                        <p className="text-xs text-muted-foreground">
-                                            ✓ Description extracted from your image. Edit if needed before generating.
-                                        </p>
+                                        <DetailedCharacterAnalysis
+                                            analysis={extractedDescription}
+                                            onUsePrompt={(prompt) => setCharacterDescription(prompt)}
+                                        />
                                     )}
+
+                                    <div className="space-y-2">
+                                        <Label htmlFor="final-prompt" className="text-xs text-muted-foreground">
+                                            Final Generation Prompt (Edit if needed)
+                                        </Label>
+                                        <Textarea
+                                            id="final-prompt"
+                                            value={characterDescription}
+                                            onChange={(e) => setCharacterDescription(e.target.value)}
+                                            placeholder="Character prompt..."
+                                            className="glass-input min-h-[100px]"
+                                            disabled={imageWorkflowStep === 'generating'}
+                                        />
+                                    </div>
                                 </div>
                             )}
 

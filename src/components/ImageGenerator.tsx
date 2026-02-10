@@ -1,29 +1,25 @@
-import { useApplication, useApiKey } from '@/context/ApplicationContext';
+import { useApplication } from '@/context/ApplicationContext';
 import { ProgressStepper } from '@/components/shared/ProgressStepper';
-import { Step0_ApiKeySetup } from '@/components/steps/Step0_ApiKeySetup';
 import { Step1_StyleSelection } from '@/components/steps/Step1_StyleSelection';
 import { Step2_CharacterSelection } from '@/components/steps/Step2_CharacterSelection';
 import { Step3_ImageGeneration } from '@/components/steps/Step3_ImageGeneration';
 
 export function ImageGenerator() {
     const { state, setStep } = useApplication();
-    const { key: apiKey } = useApiKey();
 
     // If no API key, start at step 0
-    const effectiveStep = !apiKey && state.currentStep > 0 ? 0 : state.currentStep;
+    const effectiveStep = state.currentStep;
 
     const renderStep = () => {
         switch (effectiveStep) {
             case 0:
-                return <Step0_ApiKeySetup />;
-            case 1:
                 return <Step1_StyleSelection />;
-            case 2:
+            case 1:
                 return <Step2_CharacterSelection />;
-            case 3:
+            case 2:
                 return <Step3_ImageGeneration />;
             default:
-                return <Step0_ApiKeySetup />;
+                return <Step1_StyleSelection />;
         }
     };
 

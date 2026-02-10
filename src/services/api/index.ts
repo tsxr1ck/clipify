@@ -12,3 +12,6 @@ export { default as creditsService } from './creditsService';
 export type { CreditsBalance, CreditTransaction, TransactionsListParams, TransactionsListResponse, CreditPackage, UsageSummary } from './creditsService';
 export { default as uploadService } from './uploadService';
 export type { UploadResult } from './uploadService';
+export { default as sceneBuilderService, generateSceneConfig, generateStoryConfig, calculateStoryCost } from './sceneBuilderService';
+export { default as sceneBuilderProService } from './sceneBuilderProService';
+export type { SceneBuilderResult, SceneGenerationResult, StorySegment, StoryGenerationResult } from './sceneBuilderService';
