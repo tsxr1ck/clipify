@@ -2,8 +2,10 @@ import { aiService } from './ai.service.js';
 import { generationsService } from './generations.service.js';
 import type { Generation } from '@prisma/client';
 
+// Pricing: Gemini 2.5 Flash text analysis - matches pricing.ts calculatePrice('style')
+// Base $0.01 USD + 50% markup = $0.015 USD * 17.5 MXN/USD = ~$0.26 MXN
 const ESTIMATED_COSTS = {
-    STYLE: 0.50, // MXN
+    STYLE: 0.26, // MXN - must match server/src/config/pricing.ts
 };
 
 /**

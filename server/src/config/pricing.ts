@@ -1,11 +1,14 @@
 // Pricing configuration for MXN-based credits system
+// Base costs reflect Google Cloud Vertex AI official pricing (Feb 2026)
+// Source: https://cloud.google.com/vertex-ai/generative-ai/pricing
+// User price = base cost + MARKUP_PERCENTAGE (see below)
 
 export const USD_TO_MXN = 17.5; // Update from currency API in production
 
 export const BASE_COSTS_USD = {
-    styleExtraction: 0.01,   // Gemini Flash (very cheap, keeping safe margin)
-    imageGeneration: 0.04,   // Imagen 3 (~$0.03-0.04)
-    videoPerSecond: 0.60,    // Veo (~$0.50-$0.75/sec)
+    styleExtraction: 0.01,   // Gemini 2.5 Flash text analysis (~$0.003 actual, padded for infrastructure)
+    imageGeneration: 0.05,   // Imagen 4.0 Standard ($0.04/image) + infrastructure overhead
+    videoPerSecond: 0.50,    // Veo 3.1 Standard ($0.40/sec at 720p/1080p) + infrastructure overhead
 } as const;
 
 export const MARKUP_PERCENTAGE = 50; // 50% profit margin
