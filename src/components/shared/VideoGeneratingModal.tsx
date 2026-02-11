@@ -83,7 +83,7 @@ export function VideoGeneratingModal({ isOpen, progressMessage, elapsedTime }: V
 
             <div className="relative w-full max-w-lg mx-4 glass-card p-8 animate-scaleIn">
                 {/* Glowing ring animation */}
-                <div className="absolute -inset-1 bg-gradient-to-r from-purple-500 via-blue-500 to-cyan-500 rounded-3xl blur-lg opacity-30 animate-pulse-glow" />
+                <div className="absolute -inset-1 bg-linear-to-r from-purple-500 via-blue-500 to-cyan-500 rounded-3xl blur-lg opacity-30 animate-pulse-glow" />
 
                 <div className="relative">
                     {/* Main icon with rotating ring */}
@@ -93,7 +93,7 @@ export function VideoGeneratingModal({ isOpen, progressMessage, elapsedTime }: V
                         {/* Rotating inner ring (opposite direction) */}
                         <div className="absolute inset-2 rounded-full border-4 border-transparent border-b-cyan-500 border-l-purple-500 animate-reverse-spin" />
                         {/* Center icon */}
-                        <div className="absolute inset-4 rounded-full bg-gradient-to-br from-purple-500 to-blue-500 flex items-center justify-center animate-pulse">
+                        <div className="absolute inset-4 rounded-full bg-linear-to-br from-purple-500 to-blue-500 flex items-center justify-center animate-pulse">
                             <CurrentIcon className="w-8 h-8 text-white" />
                         </div>
                     </div>
@@ -130,10 +130,10 @@ export function VideoGeneratingModal({ isOpen, progressMessage, elapsedTime }: V
                                 >
                                     <div
                                         className={`w-10 h-10 rounded-full flex items-center justify-center transition-all ${isComplete
-                                                ? 'bg-green-500/20 text-green-400'
-                                                : isActive
-                                                    ? 'bg-primary/20 text-primary animate-pulse'
-                                                    : 'bg-muted/20 text-muted-foreground'
+                                            ? 'bg-green-500/20 text-green-400'
+                                            : isActive
+                                                ? 'bg-primary/20 text-primary animate-pulse'
+                                                : 'bg-muted/20 text-muted-foreground'
                                             }`}
                                     >
                                         <StageIcon className="w-5 h-5" />
@@ -149,7 +149,7 @@ export function VideoGeneratingModal({ isOpen, progressMessage, elapsedTime }: V
                     {/* Progress bar */}
                     <div className="h-2 bg-muted/30 rounded-full overflow-hidden mb-6">
                         <div
-                            className="h-full bg-gradient-to-r from-purple-500 via-blue-500 to-cyan-500 rounded-full transition-all duration-1000 animate-shimmer"
+                            className="h-full bg-linear-to-r from-purple-500 via-blue-500 to-cyan-500 rounded-full transition-all duration-1000 animate-shimmer"
                             style={{
                                 width: `${Math.min(100, (elapsedTime / 60) * 100)}%`,
                                 backgroundSize: '200% 100%',

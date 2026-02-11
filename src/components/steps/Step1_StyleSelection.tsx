@@ -82,7 +82,7 @@ export function Step1_StyleSelection() {
         <div className="w-full max-w-6xl mx-auto animate-scaleIn">
             {/* Header */}
             <div className="text-center mb-10">
-                <h2 className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-foreground to-foreground/70">
+                <h2 className="text-3xl font-bold bg-clip-text text-transparent bg-linear-to-r from-foreground to-foreground/70">
                     Choose Your Visual Style
                 </h2>
                 <p className="text-muted-foreground mt-2 text-lg">
@@ -139,7 +139,7 @@ export function Step1_StyleSelection() {
             )}
 
             {/* Navigation Bar */}
-            <div className="fixed bottom-0 left-0 lg:left-72 right-0 p-4 glass border-t border-border/50 z-40">
+            <div className="absolute w-full bottom-0 left-0 right-0 p-4 glass border-t border-border/50 z-40">
                 <div className="max-w-6xl mx-auto flex items-center justify-between">
                     <Button
                         variant="ghost"
@@ -158,7 +158,7 @@ export function Step1_StyleSelection() {
                         <Button
                             onClick={handleContinue}
                             disabled={!state.selectedStyleId}
-                            variant="gradient"
+                            variant="default"
                             size="lg"
                             className="px-8 rounded-full shadow-lg shadow-primary/25 disabled:shadow-none"
                         >

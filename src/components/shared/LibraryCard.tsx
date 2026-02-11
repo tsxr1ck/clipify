@@ -61,7 +61,7 @@ export function LibraryCard({
                 />
 
                 {/* Gradient Overlay */}
-                <div className="absolute inset-0 bg-gradient-to-t from-background/90 via-background/20 to-transparent opacity-60 group-hover:opacity-40 transition-opacity" />
+                <div className="absolute inset-0 bg-linear-to-t from-background/90 via-background/20 to-transparent opacity-60 group-hover:opacity-40 transition-opacity" />
 
                 {/* Actions Overlay */}
                 <div className="absolute inset-0 flex items-center justify-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200 bg-black/20 backdrop-blur-[2px]">
@@ -154,11 +154,11 @@ export function CreateNewCard({ label, description, onClick, className }: Create
                 'group relative rounded-xl overflow-hidden transition-all duration-300',
                 'border-2 border-dashed border-border hover:border-primary/50',
                 'bg-muted/5 hover:bg-primary/5',
-                'aspect-[3/4] flex flex-col items-center justify-center gap-4 p-6 text-center',
+                'aspect-3/4 flex flex-col items-center justify-center gap-4 p-6 text-center',
                 className,
             )}
         >
-            <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-primary/10 to-purple-500/10 flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
+            <div className="w-16 h-16 rounded-2xl bg-linear-to-br from-primary/10 to-purple-500/10 flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
                 <span className="text-4xl text-primary font-light">+</span>
             </div>
 

@@ -10,6 +10,7 @@ import { z } from 'zod';
 export const analyzeCharacterSchema = z.object({
     imageBase64: z.string(),
     mimeType: z.string(),
+    customPrompt: z.string().optional(),
 });
 
 export const extractStyleSchema = z.object({
@@ -27,6 +28,15 @@ export const generateImageSchema = z.object({
 
 export const generateVideoSchema = z.object({
     prompt: z.string(),
+    imageBase64: z.string().optional(),
+    mimeType: z.string().optional(),
+    negativePrompt: z.string().optional(),
+});
+
+export const extendVideoSchema = z.object({
+    prompt: z.string(),
+    videoBase64: z.string(),
+    negativePrompt: z.string().optional(),
 });
 
 export const generateTextSchema = z.object({
@@ -48,18 +58,26 @@ export const aiController = {
     async analyzeCharacter(req: AuthRequest, res: Response): Promise<void> {
         try {
             const userId = req.user!.userId;
-            const { imageBase64, mimeType } = analyzeCharacterSchema.parse(req.body);
+            const { imageBase64, mimeType, customPrompt } = analyzeCharacterSchema.parse(req.body);
 
-            // Note: analyzeCharacterImageWithLogging ALREADY uses generationsService internally
-            const result = await analyzeCharacterImageWithLogging(
-                userId,
-                imageBase64,
-                mimeType
-            );
+            if (customPrompt) {
+                // Direct analysis with custom prompt (e.g., reference image analysis)
+                const price = calculatePrice('style');
+                const balance = await creditsService.getBalance(userId);
+                if (balance.lessThan(price.userPriceMXN)) {
+                    res.status(402).json({ error: `Insufficient credits. Required: $${price.userPriceMXN} MXN` });
+                    return;
+                }
 
-            await creditsService.deductCredits(userId, result.costMXN, 'Detailed Character Analysis');
-
-            res.json({ description: result.description });
+                const description = await aiService.analyzeCharacter(imageBase64, mimeType, customPrompt);
+                await creditsService.deductCredits(userId, price.userPriceMXN, 'Image Analysis');
+                res.json({ description });
+            } else {
+                // Default: enhanced character analysis with logging
+                const result = await analyzeCharacterImageWithLogging(userId, imageBase64, mimeType);
+                await creditsService.deductCredits(userId, result.costMXN, 'Detailed Character Analysis');
+                res.json({ description: result.description });
+            }
         } catch (error) {
             console.error('Character analysis error:', error);
             res.status(500).json({ error: error instanceof Error ? error.message : 'Analysis failed' });
@@ -157,7 +175,7 @@ export const aiController = {
     async generateVideo(req: AuthRequest, res: Response): Promise<void> {
         try {
             const userId = req.user!.userId;
-            const { prompt, imageBase64, mimeType }: { prompt: string, imageBase64?: string, mimeType?: string } = req.body;
+            const { prompt, negativePrompt } = generateVideoSchema.parse(req.body);
             console.log('Generating video with prompt:', prompt);
 
             const duration = 5;
@@ -170,8 +188,8 @@ export const aiController = {
                 return;
             }
 
-            // 2. Perform operation
-            const videoBase64 = await aiService.generateVideo(prompt); // NOTE: generateVideo in aiService currently ignores imageBase64 if not updated
+            // 2. Perform operation (pass reference image if provided)
+            const videoBase64 = await aiService.generateVideo(prompt, negativePrompt);
 
             // 3. Deduct credits (generation record handled by frontend via generateVideoWithLogging)
             await creditsService.deductCredits(userId, price.userPriceMXN, `Video generation (${duration}s)`);
@@ -180,6 +198,68 @@ export const aiController = {
         } catch (error) {
             console.error('Video generation error:', error);
             res.status(500).json({ error: error instanceof Error ? error.message : 'Generation failed' });
+        }
+    },
+    /**
+     * Generate video
+     */
+    async generateVideoWithReferenceImage(req: AuthRequest, res: Response): Promise<void> {
+        try {
+            const userId = req.user!.userId;
+            const { prompt, imageBase64, negativePrompt } = generateVideoSchema.parse(req.body);
+            console.log('Generating video with prompt:', prompt);
+            if (imageBase64) console.log('With reference image for image-to-video');
+
+            const duration = 5;
+            const price = calculatePrice('video', duration);
+
+            // 1. Check balance
+            const balance = await creditsService.getBalance(userId);
+            if (balance.lessThan(price.userPriceMXN)) {
+                res.status(402).json({ error: `Insufficient credits. Required: $${price.userPriceMXN} MXN` });
+                return;
+            }
+
+            // 2. Perform operation (pass reference image if provided)
+            const videoBase64 = await aiService.generateVideoWithReferenceImage(prompt, imageBase64, negativePrompt);
+
+            // 3. Deduct credits (generation record handled by frontend via generateVideoWithLogging)
+            await creditsService.deductCredits(userId, price.userPriceMXN, `Video generation (${duration}s)`);
+
+            res.json({ videoBase64 });
+        } catch (error) {
+            console.error('Video generation error:', error);
+            res.status(500).json({ error: error instanceof Error ? error.message : 'Generation failed' });
+        }
+    },
+
+    /**
+     * Extend a video (video-to-video continuation for story segments)
+     * TEST METHOD — delete if it doesn't work out.
+     */
+    async extendVideo(req: AuthRequest, res: Response): Promise<void> {
+        try {
+            const userId = req.user!.userId;
+            const { prompt, videoBase64, negativePrompt } = extendVideoSchema.parse(req.body);
+            console.log('[extendVideo] Extending video with prompt:', prompt.substring(0, 80));
+
+            const duration = 5;
+            const price = calculatePrice('video', duration);
+
+            const balance = await creditsService.getBalance(userId);
+            if (balance.lessThan(price.userPriceMXN)) {
+                res.status(402).json({ error: `Insufficient credits. Required: $${price.userPriceMXN} MXN` });
+                return;
+            }
+
+            const resultVideoBase64 = await aiService.extendVideo(prompt, videoBase64, negativePrompt);
+
+            await creditsService.deductCredits(userId, price.userPriceMXN, `Video extension (${duration}s)`);
+
+            res.json({ videoBase64: resultVideoBase64 });
+        } catch (error) {
+            console.error('[extendVideo] Video extension error:', error);
+            res.status(500).json({ error: error instanceof Error ? error.message : 'Video extension failed' });
         }
     },
 

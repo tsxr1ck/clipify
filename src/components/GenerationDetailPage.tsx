@@ -18,6 +18,8 @@ import {
     User,
     Palette,
     FileText,
+    Copy,
+    Check,
 } from 'lucide-react';
 import { formatDistanceToNow, format } from 'date-fns';
 import { toast } from 'sonner';
@@ -29,6 +31,7 @@ export function GenerationDetailPage() {
     const [generation, setGeneration] = useState<Generation | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const [copied, setCopied] = useState(false);
 
     useEffect(() => {
         if (!id) return;
@@ -226,10 +229,25 @@ export function GenerationDetailPage() {
 
                     {/* Prompt */}
                     <div className="glass-card p-5">
-                        <h3 className="text-sm font-medium flex items-center gap-2 mb-3">
-                            <FileText className="w-4 h-4 text-primary" />
-                            Prompt
-                        </h3>
+                        <div className="flex items-center justify-between mb-3">
+                            <h3 className="text-sm font-medium flex items-center gap-2">
+                                <FileText className="w-4 h-4 text-primary" />
+                                Prompt
+                            </h3>
+                            <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-7 px-2 text-muted-foreground hover:text-foreground"
+                                onClick={() => {
+                                    navigator.clipboard.writeText(generation.prompt);
+                                    setCopied(true);
+                                    toast.success('Prompt copied to clipboard');
+                                    setTimeout(() => setCopied(false), 2000);
+                                }}
+                            >
+                                {copied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                            </Button>
+                        </div>
                         <p className="text-sm text-muted-foreground bg-black/20 rounded-lg p-3">
                             {generation.prompt}
                         </p>

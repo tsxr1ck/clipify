@@ -71,7 +71,7 @@ export function LoginPage() {
                         <Button
                             type="submit"
                             disabled={isLoading}
-                            variant="gradient"
+                            variant="default"
                             className="w-full mt-2"
                         >
                             {isLoading && (

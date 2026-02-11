@@ -13,6 +13,8 @@ import { GenerationsLibrary } from './components/savedScenesLibrary';
 import { GenerationDetailPage } from './components/GenerationDetailPage';
 import { SceneDetailPage } from './components/SceneDetailPage';
 import { StoryDetailPage } from './components/StoryDetailPage';
+import { ASMRGenerator } from './components/ASMRGenerator';
+import { VideoFromReference } from './components/VideoFromReference';
 import { Toaster } from '@/components/ui/sonner';
 
 function App() {
@@ -35,6 +37,8 @@ function App() {
               <Route path="/video" element={<VideoGenerator />} />
               <Route path="/image" element={<ImageGenerator />} />
               <Route path="/scene-builder" element={<SceneBuilder />} />
+              <Route path="/asmr" element={<ASMRGenerator />} />
+              <Route path="/video-ref" element={<VideoFromReference />} />
               <Route path="/library" element={<GenerationsLibrary />} />
               <Route path="/library/generation/:id" element={<GenerationDetailPage />} />
               <Route path="/library/scene/:id" element={<SceneDetailPage />} />

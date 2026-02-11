@@ -310,7 +310,7 @@ export function CharacterCreator({
                             <button
                                 onClick={() => setCreationMode('prompt')}
                                 className={`p-4 rounded-xl text-sm font-medium transition-all duration-200 flex items-center justify-center gap-2 ${creationMode === 'prompt'
-                                    ? 'bg-gradient-to-br from-purple-500 to-blue-500 text-white'
+                                    ? 'bg-linear-to-br from-purple-500 to-blue-500 text-white'
                                     : 'glass hover:bg-primary/10'
                                     }`}
                             >
@@ -320,7 +320,7 @@ export function CharacterCreator({
                             <button
                                 onClick={() => setCreationMode('image')}
                                 className={`p-4 rounded-xl text-sm font-medium transition-all duration-200 flex items-center justify-center gap-2 ${creationMode === 'image'
-                                    ? 'bg-gradient-to-br from-purple-500 to-blue-500 text-white'
+                                    ? 'bg-linear-to-br from-purple-500 to-blue-500 text-white'
                                     : 'glass hover:bg-primary/10'
                                     }`}
                             >
@@ -503,7 +503,7 @@ export function CharacterCreator({
                                         key={option.value}
                                         onClick={() => setAspectRatio(option.value)}
                                         className={`p-3 rounded-xl text-sm font-medium transition-all duration-200 ${aspectRatio === option.value
-                                            ? 'bg-gradient-to-br from-purple-500 to-blue-500 text-white'
+                                            ? 'bg-linear-to-br from-purple-500 to-blue-500 text-white'
                                             : 'glass hover:bg-primary/10'
                                             }`}
                                     >

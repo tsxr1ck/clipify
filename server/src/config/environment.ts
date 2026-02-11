@@ -1,4 +1,11 @@
+import dotenv from 'dotenv';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import { z } from 'zod';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const envFile = process.env.NODE_ENV === 'production' ? '.env.production' : '.env.development';
+dotenv.config({ path: path.resolve(__dirname, '../..', envFile) });
 
 const envSchema = z.object({
     // Database
@@ -28,7 +35,7 @@ const envSchema = z.object({
     GOOGLE_CLOUD_PROJECT_ID: z.string().min(1),
 
     // App
-    APP_URL: z.string().url().default('https://clips.sonorodigital.com.mx/'),
+    APP_URL: z.string().url().default('http://localhost:5173'),
     NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
     PORT: z.string().default('3001'),
 });

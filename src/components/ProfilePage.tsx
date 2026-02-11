@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { creditsService, type UsageSummary, type CreditTransaction } from '@/services/api/creditsService';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
@@ -10,11 +10,9 @@ import { Label } from '@/components/ui/label';
 import {
     Loader2,
     CreditCard,
-    Clock,
     Activity,
     Settings,
     LogOut,
-    User,
     Coins,
     TrendingUp,
     Sparkles,
@@ -74,15 +72,15 @@ export function ProfilePage() {
         <div className="w-full max-w-7xl mx-auto px-4 pb-24 animate-scaleIn">
             {/* Profile Header */}
             <div className="relative glass-card rounded-3xl overflow-hidden mb-8 border-none p-0 group">
-                <div className="absolute inset-0 bg-gradient-to-br from-primary/10 via-purple-500/5 to-blue-500/10 pointer-events-none" />
+                <div className="absolute inset-0 bg-linear-to-br from-primary/10 via-purple-500/5 to-blue-500/10 pointer-events-none" />
                 <div className="absolute top-0 right-0 p-32 bg-primary/20 blur-[100px] rounded-full pointer-events-none" />
 
                 <div className="relative p-8 md:p-10 flex flex-col md:flex-row items-center md:items-start gap-8">
                     <div className="relative">
-                        <div className="absolute -inset-1 bg-gradient-to-br from-primary via-purple-500 to-blue-500 rounded-full blur opacity-75 group-hover:opacity-100 transition-opacity duration-500" />
+                        <div className="absolute -inset-1 bg-linear-to-br from-primary via-purple-500 to-blue-500 rounded-full blur opacity-75 group-hover:opacity-100 transition-opacity duration-500" />
                         <Avatar className="w-32 h-32 border-4 border-black/20 relative shadow-2xl">
                             <AvatarImage src={user.profile?.avatarUrl} className="object-cover" />
-                            <AvatarFallback className="text-4xl font-bold bg-gradient-to-br from-gray-800 to-black text-white">
+                            <AvatarFallback className="text-4xl font-bold bg-linear-to-br from-gray-800 to-black text-white">
                                 {initials}
                             </AvatarFallback>
                         </Avatar>
@@ -400,7 +398,7 @@ function TabButton({ active, onClick, icon: Icon, label }: any) {
         <button
             onClick={onClick}
             className={`flex items-center gap-2 px-6 py-3 rounded-xl text-sm font-medium transition-all duration-300 relative overflow-hidden ${active
-                ? 'bg-gradient-to-r from-primary to-purple-600 text-white shadow-lg'
+                ? 'bg-linear-to-r from-primary to-purple-600 text-white shadow-lg'
                 : 'text-muted-foreground hover:text-foreground hover:bg-white/5'
                 }`}
         >

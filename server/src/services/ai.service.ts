@@ -315,7 +315,7 @@ Provide your analysis in the following structured format:
     /**
      * Generate video using Veo on Vertex AI (LRO)
      */
-    async generateVideo(prompt: string): Promise<string> {
+    async generateVideo(prompt: string, negativePromptOverride?: string): Promise<string> {
         try {
             console.log('Starting video generation (Veo LRO) with prompt:', prompt.substring(0, 50) + '...');
 
@@ -339,6 +339,13 @@ Provide your analysis in the following structured format:
 
             console.log('Calling Veo endpoint:', endpoint);
 
+            // Build instance with optional reference image for image-to-video
+            const instance: Record<string, any> = {
+                prompt: prompt,
+                negativePrompt: negativePromptOverride || "distorted, low quality, watermark, blurry, deformed, ugly, bad anatomy, bad quality, low resolution"
+            };
+
+
             const response = await fetch(endpoint, {
                 method: 'POST',
                 headers: {
@@ -346,11 +353,152 @@ Provide your analysis in the following structured format:
                     'Content-Type': 'application/json'
                 },
                 body: JSON.stringify({
-                    instances: [{
-                        prompt: prompt,
+                    instances: [instance],
+                    parameters: {
+                        sampleCount: 1,
+                        aspectRatio: "9:16"  // Vertical video for shorts/reels
+                    }
+                })
+            });
 
-                        negativePrompt: "distorted, low quality, watermark, blurry, deformed, ugly, bad anatomy, bad quality, low resolution"
-                    }],
+            if (!response.ok) {
+                const errorText = await response.text();
+                console.error('Veo init error:', errorText);
+                throw new Error(`Veo init failed: ${response.status} ${errorText}`);
+            }
+
+            const operation = await response.json() as any;
+            const operationName = operation.name;
+            console.log('Veo operation started:', operationName);
+            console.log('Full operation object:', JSON.stringify(operation, null, 2));
+
+            // Polling loop
+            let attempts = 0;
+            const maxAttempts = 90; // 90 * 3s = 4.5 minutes (Veo can take a while)
+
+            while (attempts < maxAttempts) {
+                attempts++;
+                await new Promise(resolve => setTimeout(resolve, 3000)); // Wait 3s between polls
+
+                // Poll using v1beta1 and the FULL operation name as returned
+                // The operation name format should be consistent with the API version used
+                const pollUrl = `https://${location}-aiplatform.googleapis.com/v1/projects/${projectId}/locations/${location}/publishers/google/models/${modelId}:fetchPredictOperation`;
+
+                // console.log(`Polling attempt ${attempts}/${maxAttempts}: ${pollUrl}`);
+                const pollRes = await fetch(pollUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        'operationName': operationName
+                    })
+                });
+
+                if (!pollRes.ok) {
+                    const errorText = await pollRes.text();
+                    console.error(`Polling failed (${pollRes.status}):`, errorText);
+
+                    // Try alternative: maybe operation is in standard operations path
+                    if (pollRes.status === 404 && attempts === 1) {
+                        // Extract just the operation ID and try the standard path
+                        const opId = operationName.split('/operations/').pop();
+                        if (opId) {
+                            const altPollUrl = `https://${location}-aiplatform.googleapis.com/v1beta1/projects/${projectId}/locations/${location}/operations/${opId}`;
+                            console.log('Trying alternative URL:', altPollUrl);
+
+                            const altPollRes = await fetch(altPollUrl, {
+                                headers: { 'Authorization': `Bearer ${token}` }
+                            });
+
+                            if (altPollRes.ok) {
+                                // Use this URL pattern going forward
+                                console.log('Alternative URL works! Using standard operations path.');
+                                const altPollData = await altPollRes.json() as any;
+
+                                if (altPollData.done) {
+                                    return this.extractVideoFromOperation(altPollData);
+                                }
+                                continue;
+                            }
+                        }
+                    }
+
+                    // Don't fail immediately, keep trying
+                    if (attempts < 5) {
+                        continue;
+                    }
+
+                    throw new Error(`Polling failed after ${attempts} attempts: ${pollRes.status} ${errorText}`);
+                }
+
+                const pollData = await pollRes.json() as any;
+                // console.log(`Poll status: ${pollData.done ? 'DONE' : 'RUNNING'}`);
+                if (pollData.done) {
+                    console.log('Full poll response:', JSON.stringify(pollData, null, 2));
+                    return this.extractVideoFromOperation(pollData);
+                }
+
+                // Still running...
+            }
+
+            throw new Error('Video generation timed out after 4.5 minutes');
+
+        } catch (error) {
+            console.error('Video generation error:', error);
+            throw error;
+        }
+    }
+
+    async generateVideoWithReferenceImage(prompt: string, referenceImageBase64?: string, mimeType?: string, negativePromptOverride?: string): Promise<string> {
+        try {
+            console.log('Starting video generation (Veo LRO) with prompt:', prompt.substring(0, 50) + '...');
+            if (referenceImageBase64) {
+                console.log('Using reference image for image-to-video generation');
+            }
+
+            const { GoogleAuth } = await import('google-auth-library');
+            const auth = new GoogleAuth({
+                scopes: 'https://www.googleapis.com/auth/cloud-platform'
+            });
+            const client = await auth.getClient();
+            const accessToken = await client.getAccessToken();
+            const token = accessToken.token;
+
+            if (!token) throw new Error('Failed to get access token for Veo generation');
+
+            const projectId = env.GOOGLE_CLOUD_PROJECT_ID;
+            const location = 'us-central1';
+            const modelId = MODELS.veo;
+
+            // IMPORTANT: Use v1beta1 for publisher models like Veo
+            // The v1 API doesn't fully support all publisher model operations yet
+            const endpoint = `https://${location}-aiplatform.googleapis.com/v1/projects/${projectId}/locations/${location}/publishers/google/models/${modelId}:predictLongRunning`;
+
+            console.log('Calling Veo endpoint:', endpoint);
+
+            // Build instance with optional reference image for image-to-video
+            const instance: Record<string, any> = {
+                prompt: prompt,
+                negativePrompt: negativePromptOverride || "distorted, low quality, watermark, blurry, deformed, ugly, bad anatomy, bad quality, low resolution"
+            };
+
+            if (referenceImageBase64) {
+                instance.image = {
+                    bytesBase64Encoded: referenceImageBase64,
+                    mimeType: mimeType || 'image/png'
+                };
+            }
+
+            const response = await fetch(endpoint, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    instances: [instance],
                     parameters: {
                         sampleCount: 1,
                         aspectRatio: "9:16"  // Vertical video for shorts/reels
@@ -449,6 +597,131 @@ Provide your analysis in the following structured format:
     }
 
     /**
+     * Extend a video using Veo (video-to-video continuation)
+     * Takes a previously generated video + new prompt to extend the story.
+     * Used for chaining story segments together.
+     *
+     * TEST METHOD — delete if it doesn't work out.
+     */
+    async extendVideo(prompt: string, videoBase64: string, negativePromptOverride?: string): Promise<string> {
+        try {
+            console.log('[extendVideo] Starting video extension with prompt:', prompt.substring(0, 50) + '...');
+            console.log('[extendVideo] Input video base64 length:', videoBase64.length);
+
+            const { GoogleAuth } = await import('google-auth-library');
+            const auth = new GoogleAuth({
+                scopes: 'https://www.googleapis.com/auth/cloud-platform'
+            });
+            const client = await auth.getClient();
+            const accessToken = await client.getAccessToken();
+            const token = accessToken.token;
+
+            if (!token) throw new Error('Failed to get access token for Veo extension');
+
+            const projectId = env.GOOGLE_CLOUD_PROJECT_ID;
+            const location = 'us-central1';
+            const modelId = MODELS.veo;
+
+            const endpoint = `https://${location}-aiplatform.googleapis.com/v1/projects/${projectId}/locations/${location}/publishers/google/models/${modelId}:predictLongRunning`;
+
+            console.log('[extendVideo] Calling Veo extend endpoint:', endpoint);
+
+            const instance: Record<string, any> = {
+                prompt: prompt,
+                negativePrompt: negativePromptOverride || "distorted, low quality, watermark, blurry, deformed, ugly, bad anatomy, bad quality, low resolution",
+                video: {
+                    bytesBase64Encoded: videoBase64,
+                    mimeType: 'video/mp4'
+                }
+            };
+
+            const response = await fetch(endpoint, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    instances: [instance],
+                    parameters: {
+                        sampleCount: 1,
+                        aspectRatio: "9:16"
+                    }
+                })
+            });
+
+            if (!response.ok) {
+                const errorText = await response.text();
+                console.error('[extendVideo] Veo init error:', errorText);
+                throw new Error(`Veo extend init failed: ${response.status} ${errorText}`);
+            }
+
+            const operation = await response.json() as any;
+            const operationName = operation.name;
+            console.log('[extendVideo] Veo operation started:', operationName);
+
+            // Polling loop — same as generateVideo
+            let attempts = 0;
+            const maxAttempts = 90;
+
+            while (attempts < maxAttempts) {
+                attempts++;
+                await new Promise(resolve => setTimeout(resolve, 3000));
+
+                const pollUrl = `https://${location}-aiplatform.googleapis.com/v1/projects/${projectId}/locations/${location}/publishers/google/models/${modelId}:fetchPredictOperation`;
+
+                const pollRes = await fetch(pollUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        'operationName': operationName
+                    })
+                });
+
+                if (!pollRes.ok) {
+                    const errorText = await pollRes.text();
+                    console.error(`[extendVideo] Polling failed (${pollRes.status}):`, errorText);
+
+                    if (pollRes.status === 404 && attempts === 1) {
+                        const opId = operationName.split('/operations/').pop();
+                        if (opId) {
+                            const altPollUrl = `https://${location}-aiplatform.googleapis.com/v1beta1/projects/${projectId}/locations/${location}/operations/${opId}`;
+                            const altPollRes = await fetch(altPollUrl, {
+                                headers: { 'Authorization': `Bearer ${token}` }
+                            });
+                            if (altPollRes.ok) {
+                                const altPollData = await altPollRes.json() as any;
+                                if (altPollData.done) {
+                                    return this.extractVideoFromOperation(altPollData);
+                                }
+                                continue;
+                            }
+                        }
+                    }
+
+                    if (attempts < 5) continue;
+                    throw new Error(`[extendVideo] Polling failed after ${attempts} attempts: ${pollRes.status} ${errorText}`);
+                }
+
+                const pollData = await pollRes.json() as any;
+                if (pollData.done) {
+                    console.log('[extendVideo] Video extension complete');
+                    return this.extractVideoFromOperation(pollData);
+                }
+            }
+
+            throw new Error('[extendVideo] Video extension timed out after 4.5 minutes');
+
+        } catch (error) {
+            console.error('[extendVideo] Video extension error:', error);
+            throw error;
+        }
+    }
+
+    /**
      * CORRECTED VERSION - extractVideoFromOperation method
      * 
      * ISSUE: The original code checked video.content but Veo 3.1 actually returns
@@ -470,8 +743,10 @@ Provide your analysis in the following structured format:
      */
 
     private extractVideoFromOperation(pollData: any): string {
+        // Log error but don't bail yet — the response may still contain usable video data
+        // (e.g. "Generated video is large, an output storage uri is required" comes with video bytes)
         if (pollData.error) {
-            throw new Error(`Veo generation error: ${JSON.stringify(pollData.error)}`);
+            console.warn('[extractVideo] Operation has error field:', JSON.stringify(pollData.error));
         }
 
         console.log('Extracting video from operation response...');
@@ -568,6 +843,10 @@ Provide your analysis in the following structured format:
         console.error('Videos structure:', videos.length > 0 ? Object.keys(videos[0]) : 'none');
         console.error('Complete operation data:', JSON.stringify(pollData, null, 2));
 
+        // Now throw the original error if one existed, otherwise generic message
+        if (pollData.error) {
+            throw new Error(`Veo generation error: ${JSON.stringify(pollData.error)}`);
+        }
         throw new Error('Video generation completed but no video bytes found in response. Check logs for details.');
     }
 

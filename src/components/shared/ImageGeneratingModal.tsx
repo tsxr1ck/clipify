@@ -65,13 +65,13 @@ export function ImageGeneratingModal({ isOpen, progressMessage }: ImageGeneratin
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md">
             {/* Animated gradient background */}
             <div className="absolute inset-0 overflow-hidden pointer-events-none">
-                <div className="absolute inset-0 bg-gradient-to-br from-cyan-500/10 via-transparent to-purple-500/10 animate-gradient-shift" />
+                <div className="absolute inset-0 bg-linear-to-br from-cyan-500/10 via-transparent to-purple-500/10 animate-gradient-shift" />
 
                 {/* Floating paint drops */}
                 {[...Array(15)].map((_, i) => (
                     <div
                         key={i}
-                        className={`absolute w-4 h-4 rounded-full blur-sm animate-float-up bg-gradient-to-br ${['from-cyan-400 to-blue-500', 'from-purple-400 to-pink-500', 'from-amber-400 to-orange-500'][i % 3]
+                        className={`absolute w-4 h-4 rounded-full blur-sm animate-float-up bg-linear-to-br ${['from-cyan-400 to-blue-500', 'from-purple-400 to-pink-500', 'from-amber-400 to-orange-500'][i % 3]
                             }`}
                         style={{
                             left: `${10 + (i * 6)}%`,
@@ -84,7 +84,7 @@ export function ImageGeneratingModal({ isOpen, progressMessage }: ImageGeneratin
 
             <div className="relative w-full max-w-md mx-4">
                 {/* Outer glow */}
-                <div className={`absolute -inset-2 rounded-3xl blur-xl opacity-40 animate-pulse bg-gradient-to-r ${artStyles[currentStyleIndex].color}`} />
+                <div className={`absolute -inset-2 rounded-3xl blur-xl opacity-40 animate-pulse bg-linear-to-r ${artStyles[currentStyleIndex].color}`} />
 
                 <div className="relative glass-card p-8 animate-scaleIn">
                     {/* Animated brush/palette icon */}
@@ -110,7 +110,7 @@ export function ImageGeneratingModal({ isOpen, progressMessage }: ImageGeneratin
                         </div>
 
                         {/* Center canvas icon */}
-                        <div className="absolute inset-8 rounded-2xl bg-gradient-to-br from-cyan-500 to-blue-500 flex items-center justify-center shadow-lg shadow-cyan-500/30">
+                        <div className="absolute inset-8 rounded-2xl bg-linear-to-br from-cyan-500 to-blue-500 flex items-center justify-center shadow-lg shadow-cyan-500/30">
                             <ImageIcon className="w-10 h-10 text-white animate-pulse" />
                         </div>
 
@@ -124,7 +124,7 @@ export function ImageGeneratingModal({ isOpen, progressMessage }: ImageGeneratin
                     </div>
 
                     {/* Title with animated gradient */}
-                    <h3 className={`text-2xl font-bold text-center mb-2 bg-clip-text text-transparent bg-gradient-to-r ${artStyles[currentStyleIndex].color} transition-all duration-500`}>
+                    <h3 className={`text-2xl font-bold text-center mb-2 bg-clip-text text-transparent bg-linear-to-r ${artStyles[currentStyleIndex].color} transition-all duration-500`}>
                         Creating Your Image
                     </h3>
 
@@ -139,10 +139,10 @@ export function ImageGeneratingModal({ isOpen, progressMessage }: ImageGeneratin
                     {/* Progress bar with gradient */}
                     <div className="relative h-3 bg-muted/30 rounded-full overflow-hidden mb-4">
                         <div
-                            className={`absolute inset-y-0 left-0 rounded-full transition-all duration-500 bg-gradient-to-r ${artStyles[currentStyleIndex].color}`}
+                            className={`absolute inset-y-0 left-0 rounded-full transition-all duration-500 bg-linear-to-r ${artStyles[currentStyleIndex].color}`}
                             style={{ width: `${progress}%` }}
                         />
-                        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent animate-shimmer" style={{ backgroundSize: '200% 100%' }} />
+                        <div className="absolute inset-0 bg-linear-to-r from-transparent via-white/20 to-transparent animate-shimmer" style={{ backgroundSize: '200% 100%' }} />
                     </div>
 
                     {/* Animated creative message */}

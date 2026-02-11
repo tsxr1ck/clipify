@@ -119,6 +119,8 @@ router.post('/ai/analyze-character', authenticate, aiController.analyzeCharacter
 router.post('/ai/extract-style', authenticate, aiController.extractStyle);
 router.post('/ai/generate-image', authenticate, aiController.generateImage);
 router.post('/ai/generate-video', authenticate, aiController.generateVideo);
+router.post('/ai/generate-video-with-ref', authenticate, aiController.generateVideoWithReferenceImage);
+router.post('/ai/extend-video', authenticate, aiController.extendVideo); // TEST — video continuation for stories
 router.post('/ai/generate-text', authenticate, aiController.generateText);
 
 // ==================== SCENES & STORIES ====================

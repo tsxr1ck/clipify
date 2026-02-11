@@ -1,4 +1,3 @@
-import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
@@ -73,8 +72,8 @@ app.listen(PORT, () => {
 ║                                                           ║
 ║   🎬 Clipify API Server                                   ║
 ║                                                           ║
-║   Environment: ${env.NODE_ENV.padEnd(41)}║
-║   Port: ${String(PORT).padEnd(48)}║
+║   Environment: ${env.NODE_ENV.padEnd(43)}║
+║   Port: ${String(PORT).padEnd(50)}║
 ║   URL: http://localhost:${PORT}${' '.repeat(30)}║
 ║                                                           ║
 ╚═══════════════════════════════════════════════════════════╝

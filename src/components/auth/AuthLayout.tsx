@@ -1,4 +1,4 @@
-import { ReactNode } from 'react';
+import type { ReactNode } from 'react';
 import { Sparkles } from 'lucide-react';
 
 interface AuthLayoutProps {
@@ -13,7 +13,7 @@ export function AuthLayout({ children, title, subtitle }: AuthLayoutProps) {
             {/* Decorative Left Side */}
             <div className="relative hidden h-full flex-col bg-muted p-10 text-white lg:flex dark:border-r border-white/10">
                 <div className="absolute inset-0 bg-zinc-900" />
-                <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/20 via-purple-500/20 to-pink-500/20 animate-gradient-shift" />
+                <div className="absolute inset-0 bg-linear-to-br from-indigo-500/20 via-purple-500/20 to-pink-500/20 animate-gradient-shift" />
 
                 {/* Animated Background Elements */}
                 <div className="absolute inset-0 overflow-hidden">
@@ -22,7 +22,7 @@ export function AuthLayout({ children, title, subtitle }: AuthLayoutProps) {
                 </div>
 
                 <div className="relative z-20 flex items-center gap-2 text-lg font-medium">
-                    <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-white to-white/70 flex items-center justify-center shadow-lg">
+                    <div className="w-8 h-8 rounded-lg bg-linear-to-br from-white to-white/70 flex items-center justify-center shadow-lg">
                         <Sparkles className="w-4 h-4 text-purple-600" />
                     </div>
                     <span className="font-bold tracking-tight">Clipify</span>
@@ -44,7 +44,7 @@ export function AuthLayout({ children, title, subtitle }: AuthLayoutProps) {
                     <div className="flex flex-col space-y-2 text-center">
                         {/* Mobile Logo */}
                         <div className="lg:hidden flex justify-center mb-4">
-                            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-purple-500 to-blue-600 flex items-center justify-center shadow-lg shadow-purple-500/20">
+                            <div className="w-10 h-10 rounded-xl bg-linear-to-br from-purple-500 to-blue-600 flex items-center justify-center shadow-lg shadow-purple-500/20">
                                 <Sparkles className="w-6 h-6 text-white" />
                             </div>
                         </div>

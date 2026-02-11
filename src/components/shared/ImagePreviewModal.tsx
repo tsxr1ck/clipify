@@ -74,7 +74,7 @@ export function ImagePreviewModal({ isOpen, onClose, imageSrc, onDownload }: Ima
                 <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-10">
                     <Button
                         onClick={(e) => { e.stopPropagation(); onDownload(); }}
-                        className="bg-gradient-to-br from-cyan-500 to-blue-500 hover:from-cyan-600 hover:to-blue-600 px-6"
+                        className="bg-linear-to-br from-cyan-500 to-blue-500 hover:from-cyan-600 hover:to-blue-600 px-6"
                     >
                         <Download className="w-4 h-4 mr-2" />
                         Download Image

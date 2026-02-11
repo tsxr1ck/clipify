@@ -15,3 +15,5 @@ export type { UploadResult } from './uploadService';
 export { default as sceneBuilderService, generateSceneConfig, generateStoryConfig, calculateStoryCost } from './sceneBuilderService';
 export { default as sceneBuilderProService } from './sceneBuilderProService';
 export type { SceneBuilderResult, SceneGenerationResult, StorySegment, StoryGenerationResult } from './sceneBuilderService';
+export { default as asmrService, ASMR_TEMPLATES, generateASMRSceneConfig, buildASMRVideoPrompt } from './asmrService';
+export type { ASMRTemplate, ASMRSceneResult, ASMRSceneGenerationResult } from './asmrService';

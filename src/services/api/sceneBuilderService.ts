@@ -16,6 +16,9 @@ export interface SceneBuilderResult {
     condicionesFisicas?: string;
     defectosTecnicos?: string;
     contextoInvisible?: string;
+    // Reference Image fields
+    useReferenceImage?: boolean;
+    referenceImageBase64?: string;
 }
 
 // Response from scene generation including cost info

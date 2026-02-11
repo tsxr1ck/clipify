@@ -133,7 +133,7 @@ export function GenerationsLibrary() {
         <div className="w-full max-w-7xl mx-auto px-4 pb-24 animate-fadeIn">
             {/* Header */}
             <div className="flex flex-col items-center justify-center text-center mb-10">
-                <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center mb-4 shadow-lg shadow-amber-500/20">
+                <div className="w-16 h-16 rounded-2xl bg-linear-to-br from-amber-500 to-orange-600 flex items-center justify-center mb-4 shadow-lg shadow-amber-500/20">
                     <Library className="w-8 h-8 text-white" />
                 </div>
                 <h1 className="text-4xl font-bold tracking-tight mb-2 gradient-text">Your Library</h1>
@@ -151,7 +151,7 @@ export function GenerationsLibrary() {
                         icon={Film}
                         label="Generations"
                         count={pagination.total}
-                        activeColor="bg-gradient-to-br from-purple-600 to-blue-600"
+                        activeColor="bg-linear-to-br from-purple-600 to-blue-600"
                     />
                     <TabButton
                         active={mainTab === 'scenes'}
@@ -159,7 +159,7 @@ export function GenerationsLibrary() {
                         icon={Sparkles}
                         label="Scene Templates"
                         count={scenes.length}
-                        activeColor="bg-gradient-to-br from-purple-600 to-pink-600"
+                        activeColor="bg-linear-to-br from-purple-600 to-pink-600"
                     />
                     <TabButton
                         active={mainTab === 'stories'}
@@ -167,7 +167,7 @@ export function GenerationsLibrary() {
                         icon={BookOpen}
                         label="Stories"
                         count={stories.length}
-                        activeColor="bg-gradient-to-br from-amber-500 to-orange-500"
+                        activeColor="bg-linear-to-br from-amber-500 to-orange-500"
                     />
                 </div>
             </div>
@@ -249,7 +249,7 @@ export function GenerationsLibrary() {
             {loading ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                     {[1, 2, 3, 4, 5, 6].map(i => (
-                        <div key={i} className="aspect-[4/3] rounded-2xl glass animate-pulse" />
+                        <div key={i} className="aspect-4/3 rounded-2xl glass animate-pulse" />
                     ))}
                 </div>
             ) : (
@@ -373,7 +373,7 @@ function EmptyState({ icon: Icon, message, subtitle, action, actionLabel }: any)
     return (
         <div className="flex flex-col items-center justify-center py-20 animate-scaleIn">
             <div className="w-20 h-20 rounded-3xl bg-muted/30 flex items-center justify-center mb-6 relative overflow-hidden group">
-                <div className="absolute inset-0 bg-gradient-to-br from-primary/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+                <div className="absolute inset-0 bg-linear-to-br from-primary/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
                 <Icon className="w-10 h-10 text-muted-foreground group-hover:text-primary transition-colors" />
             </div>
             <h3 className="text-xl font-semibold text-foreground mb-2">{message}</h3>
@@ -466,7 +466,7 @@ function GenerationCard({ generation, onToggleFavorite, onDelete, onView }: { ge
                     </DropdownMenu>
                 </div>
 
-                <div className={`absolute top-2 left-2 px-2 py-1 rounded-lg text-xs font-bold ${isVideo ? 'bg-gradient-to-r from-purple-500/90 to-blue-500/90' : 'bg-gradient-to-r from-pink-500/90 to-rose-500/90'} text-white backdrop-blur-md shadow-lg`}>
+                <div className={`absolute top-2 left-2 px-2 py-1 rounded-lg text-xs font-bold ${isVideo ? 'bg-linear-to-r from-purple-500/90 to-blue-500/90' : 'bg-linear-to-r from-pink-500/90 to-rose-500/90'} text-white backdrop-blur-md shadow-lg`}>
                     {isVideo ? 'VIDEO' : 'IMAGE'}
                 </div>
             </div>
@@ -501,7 +501,7 @@ function SceneCard({ scene, onToggleFavorite, onDelete, onView, onUse }: { scene
         >
             <div className="flex justify-between items-start mb-3">
                 <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-purple-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-purple-500/20 group-hover:scale-110 transition-transform">
+                    <div className="w-10 h-10 rounded-xl bg-linear-to-br from-purple-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-purple-500/20 group-hover:scale-110 transition-transform">
                         <Sparkles className="w-5 h-5 text-white" />
                     </div>
                     <div>
@@ -546,7 +546,7 @@ function StoryCard({ story, onToggleFavorite, onDelete, onView, onUse }: { story
         >
             <div className="flex justify-between items-start mb-3">
                 <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center shadow-lg shadow-amber-500/20 group-hover:scale-110 transition-transform">
+                    <div className="w-10 h-10 rounded-xl bg-linear-to-br from-amber-500 to-orange-600 flex items-center justify-center shadow-lg shadow-amber-500/20 group-hover:scale-110 transition-transform">
                         <BookOpen className="w-5 h-5 text-white" />
                     </div>
                     <div>

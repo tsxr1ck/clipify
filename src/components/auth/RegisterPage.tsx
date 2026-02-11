@@ -49,7 +49,7 @@ export function RegisterPage() {
                         <CheckCircle2 className="w-8 h-8 text-green-500" />
                     </div>
                 </div>
-                <Button asChild variant="gradient" className="w-full">
+                <Button asChild variant="default" className="w-full">
                     <Link to="/login">Back to Login</Link>
                 </Button>
             </AuthLayout>
@@ -128,7 +128,7 @@ export function RegisterPage() {
                         <Button
                             type="submit"
                             disabled={isLoading}
-                            variant="gradient"
+                            variant="default"
                             className="w-full mt-2"
                         >
                             {isLoading && (

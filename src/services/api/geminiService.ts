@@ -162,6 +162,157 @@ export async function generateVideo(
     }
 }
 
+/**
+ * Generate video with reference image (Image-to-Video)
+ */
+export async function generateVideoWithRef(
+    motionPrompt: string,
+    imageBase64: string,
+    negativePrompt?: string
+): Promise<{ videoBase64: string; mimeType: string; costMXN: number }> {
+    try {
+        console.log('Generating video with reference image and prompt:', motionPrompt);
+        const response = await apiClient.post('/ai/generate-video-with-ref', {
+            prompt: motionPrompt,
+            imageBase64,
+            negativePrompt,
+            mimeType: 'image/png'
+        }, {
+            timeout: 300000 // 5 minutes
+        });
+
+        return {
+            videoBase64: response.data.videoBase64,
+            mimeType: 'video/mp4',
+            costMXN: 0 // Cost handled by backend
+        };
+    } catch (error) {
+        throw handleApiError(error, 'Error generating video with reference image');
+    }
+}
+
+/**
+ * Extend a video (video-to-video continuation)
+ * Passes the previous segment's video + new prompt to Veo to continue the story.
+ *
+ * TEST METHOD — delete if it doesn't work out.
+ */
+export async function extendVideo(
+    prompt: string,
+    videoBase64: string,
+    negativePrompt?: string
+): Promise<{ videoBase64: string; mimeType: string; costMXN: number }> {
+    try {
+        console.log('[extendVideo] Extending video with prompt:', prompt.substring(0, 80));
+        const response = await apiClient.post('/ai/extend-video', {
+            prompt,
+            videoBase64,
+            negativePrompt,
+        }, {
+            timeout: 300000 // 5 minutes
+        });
+
+        return {
+            videoBase64: response.data.videoBase64,
+            mimeType: 'video/mp4',
+            costMXN: 0 // Cost handled by backend
+        };
+    } catch (error) {
+        throw handleApiError(error, 'Error extending video');
+    }
+}
+
+/**
+ * Story segment definition for the chain generator
+ *
+ * TEST METHOD — delete if it doesn't work out.
+ */
+export interface StorySegmentInput {
+    segmentNumber: number;
+    title: string;
+    prompt: string; // The full built prompt for this segment
+}
+
+/**
+ * Result for each segment in the chain
+ *
+ * TEST METHOD — delete if it doesn't work out.
+ */
+export interface StorySegmentResult {
+    segmentNumber: number;
+    title: string;
+    videoBase64: string;
+    mimeType: string;
+    costMXN: number;
+    wasExtended: boolean; // true if this was created via extendVideo (segment 2+)
+}
+
+/**
+ * Generate a full story by chaining video segments together.
+ *
+ * Flow:
+ *  - Segment 1: normal generateVideo (or generateVideoWithRef if reference image provided)
+ *  - Segment 2+: extendVideo(segment prompt, previous segment's video)
+ *
+ * This produces visual continuity between segments because Veo extends
+ * from the last frames of the previous video.
+ *
+ * TEST METHOD — delete if it doesn't work out.
+ *
+ * @param segments - Array of story segments with their prompts
+ * @param firstSegmentImage - Optional image for image-to-video on segment 1
+ * @param onSegmentComplete - Callback after each segment finishes
+ * @param onSegmentStart - Callback when each segment starts
+ * @returns Array of results for each segment
+ */
+export async function generateStoryVideoChain(
+    segments: StorySegmentInput[],
+    firstSegmentImage?: string,
+    onSegmentStart?: (segmentNumber: number, title: string) => void,
+    onSegmentComplete?: (result: StorySegmentResult) => void,
+): Promise<StorySegmentResult[]> {
+    const results: StorySegmentResult[] = [];
+    let previousVideoBase64: string | null = null;
+
+    for (const segment of segments) {
+        onSegmentStart?.(segment.segmentNumber, segment.title);
+
+        let result: { videoBase64: string; mimeType: string; costMXN: number };
+        let wasExtended = false;
+
+        if (segment.segmentNumber === 1 || !previousVideoBase64) {
+            // First segment: generate from scratch (or from reference image)
+            console.log(`[storyChain] Generating segment ${segment.segmentNumber} from scratch`);
+            if (firstSegmentImage) {
+                result = await generateVideoWithRef(segment.prompt, firstSegmentImage);
+            } else {
+                result = await generateVideo('', segment.prompt);
+            }
+        } else {
+            // Subsequent segments: extend from previous video
+            console.log(`[storyChain] Extending segment ${segment.segmentNumber} from previous video`);
+            result = await extendVideo(segment.prompt, previousVideoBase64);
+            wasExtended = true;
+        }
+
+        previousVideoBase64 = result.videoBase64;
+
+        const segmentResult: StorySegmentResult = {
+            segmentNumber: segment.segmentNumber,
+            title: segment.title,
+            videoBase64: result.videoBase64,
+            mimeType: result.mimeType,
+            costMXN: result.costMXN,
+            wasExtended,
+        };
+
+        results.push(segmentResult);
+        onSegmentComplete?.(segmentResult);
+    }
+
+    return results;
+}
+
 // ==================== HIGHER LEVEL FUNCTIONS WITH LOGGING ====================
 
 // Pricing constants in MXN (display only) - must match config/constants.ts
@@ -396,6 +547,8 @@ export async function generateVideoWithLogging(
         characterId?: string;
         title?: string;
         sceneConfig?: any;
+        useReferenceImage?: boolean;
+        referenceImageBase64?: string;
     },
     _onProgress?: (message: string) => void
 ): Promise<{ videoBase64: string; mimeType: string; costMXN: number }> {
@@ -412,10 +565,12 @@ export async function generateVideoWithLogging(
             styleId: metadata.styleId,
             characterId: metadata.characterId,
             sceneConfig: metadata.sceneConfig,
-            generationParams: { duration },
+            generationParams: { duration, hasReferenceImage: !!metadata.referenceImageBase64 },
         });
 
-        const result = await generateVideo(imageBase64, motionPrompt);
+        const result = metadata.useReferenceImage && metadata.referenceImageBase64
+            ? await generateVideoWithRef(motionPrompt, metadata.referenceImageBase64)
+            : await generateVideo(imageBase64, motionPrompt);
 
         if (generation) {
             // Validate base64 data before sending
@@ -511,6 +666,32 @@ export function buildImagePrompt(
     parts.push('Generate a high-quality image maintaining the character\'s appearance and visual style consistency.');
 
     return parts.join('\n\n');
+}
+
+/**
+ * Analyze a reference image for video generation context
+ */
+export async function analyzeReferenceImage(
+    imageBase64: string,
+    mimeType: string
+): Promise<{ description: string }> {
+    try {
+        const response = await apiClient.post('/ai/analyze-character', {
+            imageBase64,
+            mimeType,
+            customPrompt: `Describe this image in detail for video generation. Focus on:
+1. The environment, setting, and spatial layout
+2. Objects, materials, and their textures
+3. Colors, color palette, and visual mood
+4. Lighting conditions and atmosphere
+5. Any notable elements or focal points
+
+Write 3-5 sentences that capture the visual essence of this image, suitable as context for generating a video that brings this still image to life.`,
+        });
+        return response.data;
+    } catch (error) {
+        throw handleApiError(error, 'Error analyzing reference image');
+    }
 }
 
 // Export for compatibility if needed

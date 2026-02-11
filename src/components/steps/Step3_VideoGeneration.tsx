@@ -5,7 +5,6 @@ import {
     Loader2,
     Download,
     AlertTriangle,
-    RefreshCw,
     Sparkles,
     Palette,
     User,
@@ -17,7 +16,11 @@ import {
     Film,
     BookOpen,
     Import,
+    ImagePlus,
+    Link2,
 } from 'lucide-react';
+import { Switch } from '@/components/ui/switch';
+import { Separator } from '@/components/ui/separator';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
@@ -33,7 +36,7 @@ import {
 } from '@/components/ui/dialog';
 import { useApplication } from '@/context/ApplicationContext';
 import { useAuth } from '@/context/AuthContext';
-import { stylesService, charactersService, generateSceneConfig, generateStoryConfig, calculateStoryCost, sceneBuilderProService } from '@/services/api';
+import { stylesService, charactersService, generateSceneConfig, generateStoryConfig, sceneBuilderProService } from '@/services/api';
 import type { Style } from '@/services/api/stylesService';
 import type { Character } from '@/services/api/charactersService';
 import type { SceneBuilderResult, StorySegment } from '@/services/api/sceneBuilderService';
@@ -42,8 +45,9 @@ import {
     checkVeoAccess,
     generateVideoWithLogging,
     buildVideoPrompt,
+    generateStoryVideoChain,
+    type StorySegmentInput,
 } from '@/services/api/geminiService';
-import { ErrorMessage } from '@/components/shared/ErrorMessage';
 import { VideoGeneratingModal } from '@/components/shared/VideoGeneratingModal';
 import { StyleSelectorModal } from '@/components/shared/StyleSelectorModal';
 import { CharacterSelectorModal } from '@/components/shared/CharacterSelectorModal';
@@ -75,7 +79,7 @@ const USD_TO_MXN = 17.5;
 
 export function Step3_VideoGeneration() {
     const { user } = useAuth();
-    const { state, prevStep, setStep, setSelectedStyle: setGlobalStyleId, setSelectedCharacter: setGlobalCharacterId } = useApplication();
+    const { state, setStep, setSelectedStyle: setGlobalStyleId, setSelectedCharacter: setGlobalCharacterId } = useApplication();
     const location = useLocation();
 
     // Style and character from API
@@ -89,22 +93,16 @@ export function Step3_VideoGeneration() {
     const [isCheckingVeo, setIsCheckingVeo] = useState(true);
     const [isLoading, setIsLoading] = useState(true);
 
-    // Form state
-    const [escena, setEscena] = useState('');
-    const [fondo, setFondo] = useState('');
-    const [accion, setAccion] = useState('');
-    const [dialogo, setDialogo] = useState('');
-    const [voiceStyle, setVoiceStyle] = useState('');
-    const [movimiento, setMovimiento] = useState('');
-    const [duration, setDuration] = useState<VideoDuration>(4);
+    // Unified Segments state (used for BOTH single scene and multi-segment story)
+    const [storySegments, setStorySegments] = useState<StorySegment[]>([]);
 
-    // Generation state
-    const [isGenerating, setIsGenerating] = useState(false);
-    const [generatedVideo, setGeneratedVideo] = useState<{
+    // Generation state per segment index
+    const [generatingIndices, setGeneratingIndices] = useState<Set<number>>(new Set());
+    const [generatedVideos, setGeneratedVideos] = useState<Record<number, {
         base64: string;
         mimeType: string;
         costMXN?: number;
-    } | null>(null);
+    }>>({});
     const [error, setError] = useState<string | null>(null);
     const [progressMessage, setProgressMessage] = useState<string>('');
     const [elapsedTime, setElapsedTime] = useState(0);
@@ -115,14 +113,6 @@ export function Step3_VideoGeneration() {
     const [aiPrompt, setAiPrompt] = useState('');
     const [isGeneratingScene, setIsGeneratingScene] = useState(false);
     const [sceneBuilderOpen, setSceneBuilderOpen] = useState(true);
-    const [sceneBuilderError, setSceneBuilderError] = useState<string | null>(null);
-    const [lastSceneCost, setLastSceneCost] = useState<number | null>(null);
-
-    // Story mode state
-    const [storySegments, setStorySegments] = useState<StorySegment[]>([]);
-    const [storyTitle, setStoryTitle] = useState('');
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const [currentSegmentIndex, setCurrentSegmentIndex] = useState(0);
 
     // Import Story State
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -130,48 +120,57 @@ export function Step3_VideoGeneration() {
     const [importJson, setImportJson] = useState('');
     const [importError, setImportError] = useState<string | null>(null);
 
+    // Chain mode — TEST: extends each segment from previous video for continuity
+    const [chainMode, setChainMode] = useState(false);
+
     // Pro Builder State
     const [useProBuilder, setUseProBuilder] = useState(false);
     const canUseProBuilder = user?.id === 'fb430091-ddba-4aa7-82d6-228528124087';
 
-    // Handle route state
+    // Handle route state & default initialization
     useEffect(() => {
         const routeState = location.state as LocationState | undefined;
+
         if (routeState?.generatedScene) {
             const scene = routeState.generatedScene;
-            setEscena(scene.escena);
-            setFondo(scene.fondo || '');
-            setAccion(scene.accion);
-            setDialogo(scene.dialogo);
-            setVoiceStyle(scene.voiceStyle || '');
-            setMovimiento(scene.movimiento || '');
-            setDuration(scene.suggestedDuration);
+            setStorySegments([{
+                segmentNumber: 1,
+                title: 'Scene 1',
+                escena: scene.escena,
+                fondo: scene.fondo || '',
+                accion: scene.accion,
+                dialogo: scene.dialogo,
+                voiceStyle: scene.voiceStyle || '',
+                movimiento: scene.movimiento || '',
+                suggestedDuration: scene.suggestedDuration || 4
+            }]);
             setSceneBuilderOpen(false);
             window.history.replaceState({}, document.title);
         } else if (routeState?.generatedStory) {
             const story = routeState.generatedStory;
             setBuilderMode('story');
-            setStoryTitle(story.title);
             setStorySegments(story.segments);
-            setCurrentSegmentIndex(0);
             setSceneBuilderOpen(false);
-            if (story.segments.length > 0) {
-                const firstSeg = story.segments[0];
-                setEscena(firstSeg.escena);
-                setFondo(firstSeg.fondo || '');
-                setAccion(firstSeg.accion);
-                setDialogo(firstSeg.dialogo);
-                setVoiceStyle(firstSeg.voiceStyle || '');
-                setMovimiento(firstSeg.movimiento || '');
-                setDuration(8);
-            }
             window.history.replaceState({}, document.title);
+        } else if (storySegments.length === 0) {
+            // Default empty segment
+            setStorySegments([{
+                segmentNumber: 1,
+                title: 'Scene 1',
+                escena: '',
+                fondo: '',
+                accion: '',
+                dialogo: '',
+                voiceStyle: '',
+                movimiento: '',
+                suggestedDuration: 8
+            }]);
         }
     }, [location.state]);
 
     // Timer
     useEffect(() => {
-        if (!isGenerating) {
+        if (generatingIndices.size === 0) {
             setElapsedTime(0);
             return;
         }
@@ -179,9 +178,11 @@ export function Step3_VideoGeneration() {
             setElapsedTime(prev => prev + 1);
         }, 1000);
         return () => clearInterval(interval);
-    }, [isGenerating]);
+    }, [generatingIndices.size]);
 
-    const estimatedCostMXN = duration * PRICING.VIDEO_PER_SECOND;
+    // Cost Estimates
+    const totalDuration = storySegments.reduce((sum, seg) => sum + (seg.suggestedDuration || 8), 0);
+    const estimatedCostMXN = totalDuration * PRICING.VIDEO_PER_SECOND;
     const estimatedCostUSD = estimatedCostMXN / USD_TO_MXN;
 
     // Load data
@@ -214,38 +215,34 @@ export function Step3_VideoGeneration() {
         }
         checkAccess();
     }, []);
-
-    const isFormValid = Boolean(escena.trim() && accion.trim() && dialogo.trim());
-
+    useEffect(() => {
+        console.log(error)
+    }, [error])
     // Handlers
     const handleGenerateScene = async () => {
         if (!aiPrompt.trim()) return;
         setIsGeneratingScene(true);
-        setSceneBuilderError(null);
-        setLastSceneCost(null);
 
         try {
             const result = useProBuilder
                 ? await sceneBuilderProService.generateSceneConfig(aiPrompt.trim())
                 : await generateSceneConfig(aiPrompt.trim());
 
-            setEscena(result.scene.escena);
-            let fondoText = result.scene.fondo || '';
-            if (result.scene.condicionesFisicas) fondoText += `\n\n[Physical]: ${result.scene.condicionesFisicas}`;
-            if (result.scene.contextoInvisible) fondoText += `\n[Context]: ${result.scene.contextoInvisible}`;
-            setFondo(fondoText);
-            setAccion(result.scene.accion);
-            setDialogo(result.scene.dialogo);
-            setVoiceStyle(result.scene.voiceStyle || '');
-            let movimientoText = result.scene.movimiento || '';
-            if (result.scene.defectosTecnicos) movimientoText += `\n[Defects]: ${result.scene.defectosTecnicos}`;
-            setMovimiento(movimientoText);
-            setDuration(result.scene.suggestedDuration);
-            setLastSceneCost(result.costMXN);
+            setStorySegments([{
+                segmentNumber: 1,
+                title: 'Scene 1',
+                escena: result.scene.escena,
+                fondo: result.scene.fondo || '',
+                accion: result.scene.accion,
+                dialogo: result.scene.dialogo,
+                voiceStyle: result.scene.voiceStyle || '',
+                movimiento: result.scene.movimiento || '',
+                suggestedDuration: result.scene.suggestedDuration
+            }]);
             setSceneBuilderOpen(false);
             toast.success('Scene configured successfully!');
         } catch (err) {
-            setSceneBuilderError(err instanceof Error ? err.message : 'Failed to generate scene');
+            toast.error(err instanceof Error ? err.message : 'Failed to generate scene');
         } finally {
             setIsGeneratingScene(false);
         }
@@ -254,35 +251,13 @@ export function Step3_VideoGeneration() {
     const handleGenerateStory = async () => {
         if (!aiPrompt.trim()) return;
         setIsGeneratingScene(true);
-        setSceneBuilderError(null);
-        setLastSceneCost(null);
-        setStorySegments([]);
-
         try {
-            const result = useProBuilder
-                ? await sceneBuilderProService.generateStoryConfig(aiPrompt.trim(), segmentCount)
-                : await generateStoryConfig(aiPrompt.trim(), segmentCount);
-
-            setStoryTitle(result.storyTitle);
+            const result = await generateStoryConfig(aiPrompt.trim(), segmentCount);
             setStorySegments(result.segments);
-            setCurrentSegmentIndex(0);
-            setLastSceneCost(result.costMXN);
-
-            if (result.segments.length > 0) {
-                const firstSeg = result.segments[0];
-                setEscena(firstSeg.escena);
-                let fondoText = firstSeg.fondo || '';
-                if (firstSeg.condicionesFisicas) fondoText += `\n\n[Physical]: ${firstSeg.condicionesFisicas}`;
-                setFondo(fondoText);
-                setAccion(firstSeg.accion);
-                setDialogo(firstSeg.dialogo);
-                setVoiceStyle(firstSeg.voiceStyle || '');
-                setMovimiento(firstSeg.movimiento || '');
-                setDuration(8);
-            }
-            toast.success('Story generated successfully!');
+            setSceneBuilderOpen(false);
+            toast.success('Story configured successfully!');
         } catch (err) {
-            setSceneBuilderError(err instanceof Error ? err.message : 'Failed to generate story');
+            // Error handled by UI/Toast
         } finally {
             setIsGeneratingScene(false);
         }
@@ -295,21 +270,9 @@ export function Step3_VideoGeneration() {
             if (!parsed.segments || !Array.isArray(parsed.segments) || parsed.segments.length === 0) {
                 throw new Error('Invalid JSON: Segments missing or empty.');
             }
-            setStoryTitle(parsed.storyTitle || 'Imported Story');
             setStorySegments(parsed.segments);
-            setLastSceneCost(parsed.costMXN || null);
             setBuilderMode('story');
             setSegmentCount(parsed.segments.length);
-            setCurrentSegmentIndex(0);
-
-            const firstSeg = parsed.segments[0];
-            setEscena(firstSeg.escena || '');
-            setFondo(firstSeg.fondo || '');
-            setAccion(firstSeg.accion || '');
-            setDialogo(firstSeg.dialogo || '');
-            setVoiceStyle(firstSeg.voiceStyle || '');
-            setMovimiento(firstSeg.movimiento || '');
-            setDuration(firstSeg.suggestedDuration || 8);
 
             setShowImportModal(false);
             setImportJson('');
@@ -322,24 +285,40 @@ export function Step3_VideoGeneration() {
         }
     };
 
-    const handleGenerate = async () => {
-        if (!selectedStyle || !selectedCharacter || !isFormValid) return;
-        setIsGenerating(true);
+    const updateSegment = (index: number, updates: Partial<StorySegment>) => {
+        setStorySegments(prev => prev.map((seg, i) =>
+            i === index ? { ...seg, ...updates } : seg
+        ));
+    };
+
+    const handleGenerate = async (index: number) => {
+        const segment = storySegments[index];
+        if (!selectedStyle || !selectedCharacter || !segment) return;
+        if (!segment.escena.trim() || !segment.accion.trim() || !segment.dialogo.trim()) {
+            toast.error(`Please fill all required fields for Segment ${index + 1}`);
+            return;
+        }
+
+        setGeneratingIndices(prev => {
+            const next = new Set(prev);
+            next.add(index);
+            return next;
+        });
         setError(null);
-        setProgressMessage('');
+        setProgressMessage(`Generating Segment ${index + 1}...`);
 
         try {
             const prompt = buildVideoPrompt(
-                escena.trim(),
-                fondo.trim() || undefined,
-                accion.trim(),
-                dialogo.trim(),
-                voiceStyle.trim() || undefined,
-                movimiento.trim() || undefined,
+                segment.escena.trim(),
+                segment.fondo?.trim() || undefined,
+                segment.accion.trim(),
+                segment.dialogo.trim(),
+                segment.voiceStyle?.trim() || undefined,
+                segment.movimiento?.trim() || undefined,
                 selectedStyle.keywords,
                 selectedStyle.parsedStyle,
                 selectedCharacter.prompt,
-                duration
+                segment.suggestedDuration || 8
             );
 
             // Fetch image as base64
@@ -356,28 +335,36 @@ export function Step3_VideoGeneration() {
             const result = await generateVideoWithLogging(
                 imageBase64,
                 prompt,
-                duration,
+                segment.suggestedDuration || 8,
                 {
                     styleId: selectedStyle.id,
                     characterId: selectedCharacter.id,
-                    title: `Video: ${selectedCharacter.name} - ${accion.substring(0, 30)}`,
-                    sceneConfig: { escena, fondo, accion, dialogo, voiceStyle, movimiento, duration }
+                    title: `Video: ${selectedCharacter.name} - ${segment.accion.substring(0, 30)}`,
+                    sceneConfig: {
+                        ...segment,
+                        duration: segment.suggestedDuration || 8
+                    },
+                    useReferenceImage: segment.useReferenceImage,
+                    referenceImageBase64: segment.referenceImageBase64
                 },
                 (message) => setProgressMessage(message)
             );
 
-            setGeneratedVideo({
-                base64: result.videoBase64,
-                mimeType: result.mimeType,
-                costMXN: result.costMXN,
-            });
+            setGeneratedVideos(prev => ({
+                ...prev,
+                [index]: {
+                    base64: result.videoBase64,
+                    mimeType: result.mimeType,
+                    costMXN: result.costMXN,
+                }
+            }));
 
             // Use audio safely
             const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
             audio.volume = 0.5;
             audio.play().catch(() => { }); // Ignore interaction error
 
-            toast.success('Video generated successfully!');
+            toast.success(`Segment ${index + 1} generated successfully!`);
         } catch (err) {
             const msg = err instanceof Error ? err.message : 'Failed to generate video';
             setError(msg);
@@ -390,15 +377,115 @@ export function Step3_VideoGeneration() {
                 toast.error(msg);
             }
         } finally {
-            setIsGenerating(false);
+            setGeneratingIndices(prev => {
+                const next = new Set(prev);
+                next.delete(index);
+                return next;
+            });
         }
     };
 
-    const handleDownload = () => {
-        if (!generatedVideo) return;
+    const handleGenerateAll = async () => {
+        if (chainMode) {
+            return handleGenerateAllChained();
+        }
+        for (let i = 0; i < storySegments.length; i++) {
+            await handleGenerate(i);
+        }
+    };
+
+    /**
+     * TEST — Chained generation: segment 1 generated normally,
+     * segments 2+ extend from the previous segment's video for continuity.
+     */
+    const handleGenerateAllChained = async () => {
+        if (!selectedStyle || !selectedCharacter) return;
+
+        // Validate all segments
+        for (let i = 0; i < storySegments.length; i++) {
+            const seg = storySegments[i];
+            if (!seg.escena.trim() || !seg.accion.trim() || !seg.dialogo.trim()) {
+                toast.error(`Please fill all required fields for Segment ${i + 1}`);
+                return;
+            }
+        }
+
+        // Mark all as generating
+        setGeneratingIndices(new Set(storySegments.map((_, i) => i)));
+        setError(null);
+        setProgressMessage('Preparing chained generation...');
+
+        try {
+            // Build segment inputs with full prompts
+            const segmentInputs: StorySegmentInput[] = storySegments.map((segment, index) => ({
+                segmentNumber: index + 1,
+                title: segment.title || `Segment ${index + 1}`,
+                prompt: buildVideoPrompt(
+                    segment.escena.trim(),
+                    segment.fondo?.trim() || undefined,
+                    segment.accion.trim(),
+                    segment.dialogo.trim(),
+                    segment.voiceStyle?.trim() || undefined,
+                    segment.movimiento?.trim() || undefined,
+                    selectedStyle.keywords,
+                    selectedStyle.parsedStyle,
+                    selectedCharacter.prompt,
+                    segment.suggestedDuration || 8
+                ),
+            }));
+
+            // Use reference image for first segment if available
+            let firstSegmentImage: string | undefined;
+            const firstSeg = storySegments[0];
+            if (firstSeg.useReferenceImage && firstSeg.referenceImageBase64) {
+                firstSegmentImage = firstSeg.referenceImageBase64;
+            }
+
+            await generateStoryVideoChain(
+                segmentInputs,
+                firstSegmentImage,
+                (segNum, title) => {
+                    setProgressMessage(`${segNum > 1 ? '(Extending) ' : ''}Generating Segment ${segNum}: ${title}...`);
+                },
+                (result) => {
+                    const idx = result.segmentNumber - 1;
+                    setGeneratedVideos(prev => ({
+                        ...prev,
+                        [idx]: {
+                            base64: result.videoBase64,
+                            mimeType: result.mimeType,
+                            costMXN: result.costMXN,
+                        }
+                    }));
+                    setGeneratingIndices(prev => {
+                        const next = new Set(prev);
+                        next.delete(idx);
+                        return next;
+                    });
+                    toast.success(`Segment ${result.segmentNumber} generated${result.wasExtended ? ' (extended from previous)' : ''}!`);
+                }
+            );
+
+            const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
+            audio.volume = 0.5;
+            audio.play().catch(() => {});
+
+            toast.success('All segments generated with chained continuity!');
+        } catch (err) {
+            const msg = err instanceof Error ? err.message : 'Failed to generate chained video';
+            setError(msg);
+            toast.error(msg);
+        } finally {
+            setGeneratingIndices(new Set());
+        }
+    };
+
+    const handleDownload = (index: number) => {
+        const video = generatedVideos[index];
+        if (!video) return;
         const link = document.createElement('a');
-        link.href = base64ToDataUrl(generatedVideo.base64, generatedVideo.mimeType);
-        link.download = `clipify-video-${Date.now()}.mp4`;
+        link.href = base64ToDataUrl(video.base64, video.mimeType);
+        link.download = `clipify-video-seg-${index + 1}-${Date.now()}.mp4`;
         link.click();
     };
 
@@ -412,8 +499,9 @@ export function Step3_VideoGeneration() {
     };
 
     const handleStartNew = () => {
-        setEscena(''); setFondo(''); setAccion(''); setDialogo(''); setVoiceStyle(''); setMovimiento('');
-        setDuration(4); setGeneratedVideo(null); setError(null);
+        setStorySegments([]);
+        setGeneratedVideos({});
+        setError(null);
     };
 
     const handleStyleSwap = (newStyle: Style) => {
@@ -516,14 +604,14 @@ export function Step3_VideoGeneration() {
                     {/* Middle Column: Configuration */}
                     <div className="lg:col-span-5 space-y-6">
                         {/* AI Builder Section */}
-                        <div className="glass p-1 rounded-2xl bg-gradient-to-br from-primary/10 to-purple-500/10">
+                        <div className="glass p-1 rounded-2xl bg-linear-to-br from-primary/10 to-purple-500/10">
                             <div className="bg-background/50 backdrop-blur-xl rounded-xl overflow-hidden">
                                 <button
                                     onClick={() => setSceneBuilderOpen(!sceneBuilderOpen)}
                                     className="w-full px-5 py-4 flex items-center justify-between hover:bg-white/5 transition-colors"
                                 >
                                     <div className="flex items-center gap-3">
-                                        <div className="p-2 rounded-lg bg-gradient-to-br from-purple-500 to-indigo-500 text-white shadow-lg shadow-purple-500/20">
+                                        <div className="p-2 rounded-lg bg-linear-to-br from-purple-500 to-indigo-500 text-white shadow-lg shadow-purple-500/20">
                                             <Wand2 className="w-4 h-4" />
                                         </div>
                                         <div className="text-left">
@@ -609,89 +697,245 @@ export function Step3_VideoGeneration() {
                             </div>
                         </div>
 
-                        {/* Parameters Form */}
-                        <Card className="glass-card border-none space-y-4 p-6">
-                            <h3 className="text-sm font-semibold text-foreground flex items-center gap-2 mb-4">
-                                <Film className="w-4 h-4" /> Parameters
-                            </h3>
+                        {/* Parameters Forms */}
+                        <div className="space-y-8">
+                            {storySegments.length === 0 && (
+                                <Card className="glass-card border-none p-12 text-center">
+                                    <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center mx-auto mb-4">
+                                        <BookOpen className="w-8 h-8 text-muted-foreground" />
+                                    </div>
+                                    <h3 className="font-semibold text-lg mb-2">No segments yet</h3>
+                                    <p className="text-muted-foreground text-sm max-w-xs mx-auto">
+                                        Use the AI Scene Builder above to generate your first scene or story.
+                                    </p>
+                                </Card>
+                            )}
 
-                            <div className="space-y-4">
-                                <div className="space-y-1.5">
-                                    <Label className="text-xs">
-                                        Scene Description <span className="text-destructive">*</span>
-                                    </Label>
-                                    <Textarea
-                                        value={escena} onChange={e => setEscena(e.target.value)}
-                                        placeholder="Detailed description of the environment..."
-                                        className="glass-input h-20 text-sm"
-                                    />
-                                </div>
+                            {storySegments.map((segment, index) => (
+                                <Card key={index} className="glass-card border-none space-y-4 p-6 relative overflow-hidden group">
+                                    {storySegments.length > 1 && (
+                                        <div className="absolute top-0 left-0 w-1 h-full bg-primary/20 group-hover:bg-primary transition-colors" />
+                                    )}
 
-                                <div className="grid grid-cols-2 gap-4">
-                                    <div className="space-y-1.5">
-                                        <Label className="text-xs">Action <span className="text-destructive">*</span></Label>
-                                        <Input
-                                            value={accion} onChange={e => setAccion(e.target.value)}
-                                            placeholder="What happens?"
-                                            className="glass-input h-9 text-sm"
+                                    <div className="flex items-center justify-between mb-2">
+                                        <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
+                                            <Film className="w-4 h-4" />
+                                            {storySegments.length > 1 ? `Segment ${index + 1}: ${segment.title || 'Untitled'}` : 'Parameters'}
+                                        </h3>
+                                        {generatedVideos[index] && (
+                                            <div className="text-[10px] px-2 py-0.5 rounded-full bg-green-500/10 text-green-500 font-bold uppercase tracking-wider">
+                                                Generated
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    <div className="space-y-4">
+                                        <div className="space-y-1.5">
+                                            <Label className="text-xs">
+                                                Scene Description <span className="text-destructive">*</span>
+                                            </Label>
+                                            <Textarea
+                                                value={segment.escena}
+                                                onChange={e => updateSegment(index, { escena: e.target.value })}
+                                                placeholder="Detailed description of the environment..."
+                                                className="glass-input h-20 text-sm"
+                                            />
+                                        </div>
+
+                                        <div className="grid grid-cols-2 gap-4">
+                                            <div className="space-y-1.5">
+                                                <Label className="text-xs">Action <span className="text-destructive">*</span></Label>
+                                                <Input
+                                                    value={segment.accion}
+                                                    onChange={e => updateSegment(index, { accion: e.target.value })}
+                                                    placeholder="What happens?"
+                                                    className="glass-input h-9 text-sm"
+                                                />
+                                            </div>
+                                            <div className="space-y-1.5">
+                                                <Label className="text-xs">Dialogue <span className="text-destructive">*</span></Label>
+                                                <Input
+                                                    value={segment.dialogo}
+                                                    onChange={e => updateSegment(index, { dialogo: e.target.value })}
+                                                    placeholder="Spoken text..."
+                                                    className="glass-input h-9 text-sm"
+                                                />
+                                            </div>
+                                        </div>
+
+                                        <div className="space-y-1.5">
+                                            <Label className="text-xs">Secondary Details (Optional)</Label>
+                                            <Textarea
+                                                value={segment.fondo}
+                                                onChange={e => updateSegment(index, { fondo: e.target.value })}
+                                                placeholder="Background details, lighting, camera angles..."
+                                                className="glass-input h-16 text-sm"
+                                            />
+                                        </div>
+
+                                        <Separator className="bg-border/50" />
+
+                                        <div className="space-y-4">
+                                            <div className="flex items-center justify-between">
+                                                <div className="space-y-0.5">
+                                                    <Label className="text-xs font-semibold">Reference Image</Label>
+                                                    <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-bold">Recommended for better results</p>
+                                                </div>
+                                                <Switch
+                                                    checked={segment.useReferenceImage}
+                                                    onCheckedChange={(checked) => updateSegment(index, { useReferenceImage: checked })}
+                                                />
+                                            </div>
+
+                                            {segment.useReferenceImage && (
+                                                <div className="space-y-3 animate-in fade-in slide-in-from-top-2 duration-300">
+                                                    <div className="relative group/upload">
+                                                        {segment.referenceImageBase64 ? (
+                                                            <div className="relative rounded-xl overflow-hidden aspect-video border border-border/50 group/preview">
+                                                                <img
+                                                                    src={`data:image/png;base64,${segment.referenceImageBase64}`}
+                                                                    alt="Reference"
+                                                                    className="w-full h-full object-cover"
+                                                                />
+                                                                <div className="absolute inset-0 bg-black/60 opacity-0 group-hover/preview:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                                                                    <Button
+                                                                        size="sm"
+                                                                        variant="secondary"
+                                                                        className="h-8 text-[10px] font-bold uppercase tracking-widest"
+                                                                        onClick={() => {
+                                                                            const input = document.getElementById(`ref-image-${index}`) as HTMLInputElement;
+                                                                            input?.click();
+                                                                        }}
+                                                                    >
+                                                                        Change
+                                                                    </Button>
+                                                                    <Button
+                                                                        size="sm"
+                                                                        variant="destructive"
+                                                                        className="h-8 text-[10px] font-bold uppercase tracking-widest"
+                                                                        onClick={() => updateSegment(index, { referenceImageBase64: undefined })}
+                                                                    >
+                                                                        Remove
+                                                                    </Button>
+                                                                </div>
+                                                            </div>
+                                                        ) : (
+                                                            <button
+                                                                onClick={() => {
+                                                                    const input = document.getElementById(`ref-image-${index}`) as HTMLInputElement;
+                                                                    input?.click();
+                                                                }}
+                                                                className="w-full aspect-video rounded-xl border-2 border-dashed border-muted-foreground/20 hover:border-primary/50 hover:bg-primary/5 transition-all flex flex-col items-center justify-center gap-2 group/btn"
+                                                            >
+                                                                <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center group-hover/btn:scale-110 transition-transform">
+                                                                    <ImagePlus className="w-5 h-5 text-muted-foreground group-hover/btn:text-primary" />
+                                                                </div>
+                                                                <div className="text-center">
+                                                                    <p className="text-xs font-semibold">Upload Reference Image</p>
+                                                                    <p className="text-[10px] text-muted-foreground mt-0.5">PNG, JPG up to 10MB</p>
+                                                                </div>
+                                                            </button>
+                                                        )}
+                                                        <input
+                                                            id={`ref-image-${index}`}
+                                                            type="file"
+                                                            accept="image/*"
+                                                            className="hidden"
+                                                            onChange={async (e) => {
+                                                                const file = e.target.files?.[0];
+                                                                if (!file) return;
+                                                                if (file.size > 10 * 1024 * 1024) {
+                                                                    toast.error('Image too large (max 10MB)');
+                                                                    return;
+                                                                }
+
+                                                                const reader = new FileReader();
+                                                                reader.onloadend = () => {
+                                                                    const base64 = (reader.result as string).split(',')[1];
+                                                                    updateSegment(index, { referenceImageBase64: base64 });
+                                                                };
+                                                                reader.readAsDataURL(file);
+                                                            }}
+                                                        />
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        <div className="space-y-3 pt-2">
+                                            <Label className="text-xs">Duration</Label>
+                                            <div className="flex gap-2">
+                                                {durationOptions.map(opt => (
+                                                    <button
+                                                        key={opt.value}
+                                                        onClick={() => updateSegment(index, { suggestedDuration: opt.value })}
+                                                        className={`flex-1 py-2 rounded-xl text-sm font-medium transition-all ${segment.suggestedDuration === opt.value ? 'bg-primary text-primary-foreground shadow-lg shadow-primary/20' : 'bg-muted/50 hover:bg-muted text-muted-foreground'}`}
+                                                    >
+                                                        {opt.label}
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <Button
+                                        onClick={() => handleGenerate(index)}
+                                        disabled={!segment.escena.trim() || !segment.accion.trim() || generatingIndices.has(index)}
+                                        className="w-full mt-4 btn-gradient py-6 text-base shadow-xl shadow-primary/20"
+                                    >
+                                        {generatingIndices.has(index) ? (
+                                            <>
+                                                <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                                                Generating Segment {index + 1}...
+                                            </>
+                                        ) : (
+                                            <>
+                                                <Sparkles className="w-5 h-5 mr-2" />
+                                                {generatedVideos[index] ? 'Regenerate Segment' : `Generate Segment ${index + 1}`}
+                                            </>
+                                        )}
+                                    </Button>
+                                </Card>
+                            ))}
+
+                            {storySegments.length > 1 && (
+                                <div className="space-y-3">
+                                    {/* Chain Mode Toggle */}
+                                    <div className="flex items-center justify-between px-4 py-3 rounded-xl bg-muted/30 border border-border/50">
+                                        <div className="flex items-center gap-2">
+                                            <Link2 className={`w-4 h-4 ${chainMode ? 'text-primary' : 'text-muted-foreground'}`} />
+                                            <div>
+                                                <Label className="text-xs font-semibold cursor-pointer" htmlFor="chain-toggle">Chain Mode</Label>
+                                                <p className="text-[10px] text-muted-foreground">Each segment extends from the previous video</p>
+                                            </div>
+                                        </div>
+                                        <Switch
+                                            id="chain-toggle"
+                                            checked={chainMode}
+                                            onCheckedChange={setChainMode}
                                         />
                                     </div>
-                                    <div className="space-y-1.5">
-                                        <Label className="text-xs">Dialogue <span className="text-destructive">*</span></Label>
-                                        <Input
-                                            value={dialogo} onChange={e => setDialogo(e.target.value)}
-                                            placeholder="Spoken text..."
-                                            className="glass-input h-9 text-sm"
-                                        />
-                                    </div>
-                                </div>
 
-                                <div className="space-y-1.5">
-                                    <Label className="text-xs">Secondary Details (Optional)</Label>
-                                    <Textarea
-                                        value={fondo} onChange={e => setFondo(e.target.value)}
-                                        placeholder="Background details, lighting, camera angles..."
-                                        className="glass-input h-16 text-sm"
-                                    />
+                                    <Button
+                                        onClick={handleGenerateAll}
+                                        disabled={generatingIndices.size > 0}
+                                        variant="outline"
+                                        className={`w-full py-8 text-lg border-2 border-dashed rounded-2xl transition-all ${chainMode
+                                            ? 'border-primary/40 hover:border-primary/60 hover:bg-primary/10'
+                                            : 'border-primary/20 hover:border-primary/40 hover:bg-primary/5'
+                                        }`}
+                                    >
+                                        {chainMode
+                                            ? <><Link2 className="w-6 h-6 mr-3 text-primary" /> Generate All (Chained)</>
+                                            : <><Sparkles className="w-6 h-6 mr-3 text-primary" /> Generate All Segments</>
+                                        }
+                                    </Button>
                                 </div>
-
-                                <div className="space-y-3 pt-2">
-                                    <Label className="text-xs">Duration</Label>
-                                    <div className="flex gap-2">
-                                        {durationOptions.map(opt => (
-                                            <button
-                                                key={opt.value}
-                                                onClick={() => setDuration(opt.value)}
-                                                className={`flex-1 py-2 rounded-xl text-sm font-medium transition-all ${duration === opt.value ? 'bg-primary text-primary-foreground shadow-lg shadow-primary/20' : 'bg-muted/50 hover:bg-muted text-muted-foreground'}`}
-                                            >
-                                                {opt.label}
-                                            </button>
-                                        ))}
-                                    </div>
-                                </div>
-                            </div>
-
-                            <Button
-                                onClick={handleGenerate}
-                                disabled={!isFormValid || isGenerating}
-                                className="w-full mt-4 btn-gradient py-6 text-base shadow-xl shadow-primary/20"
-                            >
-                                {isGenerating ? (
-                                    <>
-                                        <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                                        Generating...
-                                    </>
-                                ) : (
-                                    <>
-                                        <Sparkles className="w-5 h-5 mr-2" />
-                                        Generate Video
-                                    </>
-                                )}
-                            </Button>
-                        </Card>
+                            )}
+                        </div>
                     </div>
 
-                    {/* Right Column: Preview & Status */}
+                    {/* Preview Cards */}
                     <div className="lg:col-span-4 space-y-6">
                         {/* Cost Card */}
                         <Card className="glass-card border-none p-5">
@@ -708,56 +952,76 @@ export function Step3_VideoGeneration() {
                             </div>
                         </Card>
 
-                        {/* Preview Card */}
-                        <Card className="glass-card border-none p-5 flex flex-col h-fit min-h-[300px]">
-                            <h3 className="text-sm font-semibold mb-4 flex items-center gap-2"><Film className="w-4 h-4" /> Preview</h3>
-
-                            <div className="flex-1 rounded-xl bg-black/5 dark:bg-black/40 border-2 border-dashed border-muted flex items-center justify-center relative overflow-hidden group">
-                                {generatedVideo ? (
-                                    <div className="relative w-full h-full p-2">
-                                        <video
-                                            src={base64ToDataUrl(generatedVideo.base64, generatedVideo.mimeType)}
-                                            controls
-                                            className="w-full h-full rounded-lg object-contain bg-black"
-                                            autoPlay
-                                            loop
-                                        />
-                                        <div className="absolute top-4 right-4 flex gap-2">
-                                            <Button size="icon" variant="secondary" className="h-8 w-8 rounded-full backdrop-blur-md bg-white/10 hover:bg-white/20 text-white" onClick={handleDownload}>
-                                                <Download className="w-4 h-4" />
-                                            </Button>
-                                        </div>
+                        {/* Story Summary / Progress */}
+                        {storySegments.length > 0 && (
+                            <Card className="glass-card border-none p-5">
+                                <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-4">Generation Progress</h3>
+                                <div className="space-y-3">
+                                    <div className="flex justify-between text-xs">
+                                        <span>Segments Generated</span>
+                                        <span>{Object.keys(generatedVideos).length} / {storySegments.length}</span>
                                     </div>
-                                ) : (
-                                    <div className="text-center p-6">
-                                        {isGenerating ? (
-                                            <div className="space-y-3">
-                                                <Loader2 className="w-10 h-10 animate-spin text-primary mx-auto" />
-                                                <p className="text-sm text-foreground font-medium animate-pulse">{progressMessage || "Processing..."}</p>
+                                    <div className="h-1.5 w-full bg-muted rounded-full overflow-hidden">
+                                        <div
+                                            className="h-full bg-primary transition-all duration-500"
+                                            style={{ width: `${(Object.keys(generatedVideos).length / storySegments.length) * 100}%` }}
+                                        />
+                                    </div>
+                                    {generatingIndices.size > 0 && (
+                                        <p className="text-[10px] text-primary animate-pulse flex items-center gap-2">
+                                            <Loader2 className="w-3 h-3 animate-spin" />
+                                            Currently generating {generatingIndices.size} segment(s)...
+                                        </p>
+                                    )}
+                                    <Button
+                                        onClick={handleStartNew}
+                                        variant="ghost"
+                                        size="sm"
+                                        className="w-full mt-4 text-[10px] uppercase font-bold tracking-widest text-muted-foreground hover:text-foreground"
+                                    >
+                                        Start Over
+                                    </Button>
+                                </div>
+                            </Card>
+                        )}
+
+                        {/* Video List */}
+                        <div className="space-y-4">
+                            {storySegments.map((segment, index) => (
+                                <Card key={index} className="glass-card border-none overflow-hidden group">
+                                    <div className="p-3 bg-muted/30 border-b border-border/50 flex items-center justify-between">
+                                        <h4 className="text-xs font-bold truncate">
+                                            {index + 1}. {segment.title || 'Untitled'}
+                                        </h4>
+                                        {generatedVideos[index] && (
+                                            <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => handleDownload(index)}>
+                                                <Download className="w-3 h-3" />
+                                            </Button>
+                                        )}
+                                    </div>
+                                    <div className="aspect-video bg-black/40 relative flex items-center justify-center">
+                                        {generatedVideos[index] ? (
+                                            <video
+                                                src={base64ToDataUrl(generatedVideos[index].base64, generatedVideos[index].mimeType)}
+                                                controls
+                                                className="w-full h-full object-contain"
+                                            />
+                                        ) : generatingIndices.has(index) ? (
+                                            <div className="flex flex-col items-center gap-2">
+                                                <Loader2 className="w-8 h-8 animate-spin text-primary" />
+                                                <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-widest">{progressMessage}</p>
+                                                <p className="text-xs font-mono">{elapsedTime}s elapsed</p>
                                             </div>
                                         ) : (
-                                            <div className="space-y-2">
-                                                <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center mx-auto mb-2">
-                                                    <Video className="w-6 h-6 text-muted-foreground" />
-                                                </div>
-                                                <p className="text-sm text-muted-foreground">Generated video will appear here</p>
+                                            <div className="flex flex-col items-center gap-2 opacity-40">
+                                                <Video className="w-8 h-8" />
+                                                <p className="text-[10px] uppercase font-bold tracking-widest">Ready to generate</p>
                                             </div>
                                         )}
                                     </div>
-                                )}
-                            </div>
-
-                            {generatedVideo && (
-                                <div className="mt-4 grid grid-cols-2 gap-3">
-                                    <Button onClick={handleDownload} variant="outline" className="w-full">
-                                        <Download className="w-4 h-4 mr-2" /> Save
-                                    </Button>
-                                    <Button onClick={handleStartNew} variant="ghost" className="w-full">
-                                        <RefreshCw className="w-4 h-4 mr-2" /> New
-                                    </Button>
-                                </div>
-                            )}
-                        </Card>
+                                </Card>
+                            ))}
+                        </div>
                     </div>
                 </div>
             )}
@@ -772,13 +1036,13 @@ export function Step3_VideoGeneration() {
 
             <MobileCostBar
                 cost={estimatedCostMXN}
-                isValid={isFormValid}
-                onGenerate={handleGenerate}
-                isGenerating={isGenerating}
+                isValid={storySegments.length > 0 && storySegments.every(s => s.escena.trim() && s.accion.trim())}
+                onGenerate={handleGenerateAll}
+                isGenerating={generatingIndices.size > 0}
             />
 
             {/* Modals */}
-            <VideoGeneratingModal isOpen={isGenerating} progressMessage={progressMessage} elapsedTime={elapsedTime} />
+            <VideoGeneratingModal isOpen={generatingIndices.size > 0} progressMessage={progressMessage} elapsedTime={elapsedTime} />
             <StyleSelectorModal open={showStyleSelector} onClose={() => setShowStyleSelector(false)} onSelect={handleStyleSwap} currentStyleId={selectedStyle?.id} />
             <CharacterSelectorModal open={showCharacterSelector} onClose={() => setShowCharacterSelector(false)} onSelect={handleCharacterSwap} currentCharacterId={selectedCharacter?.id} />
 

@@ -23,14 +23,14 @@ export function MobileStyleCharacterBar({
           onClick={onChangeStyle}
           className="flex items-center gap-2 flex-1 p-2 rounded-lg glass hover:bg-primary/10 transition-colors"
         >
-          {style?.imageUrl ? (
+          {style?.referenceImageUrl ? (
             <img
-              src={style.imageUrl}
+              src={style.referenceImageUrl}
               alt={style.name}
               className="w-10 h-10 rounded-lg object-cover"
             />
           ) : (
-            <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-purple-500 to-blue-500 flex items-center justify-center">
+            <div className="w-10 h-10 rounded-lg bg-linear-to-br from-purple-500 to-blue-500 flex items-center justify-center">
               <Palette className="w-5 h-5 text-white" />
             </div>
           )}
@@ -52,7 +52,7 @@ export function MobileStyleCharacterBar({
               className="w-10 h-10 rounded-lg object-cover"
             />
           ) : (
-            <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-purple-500 to-blue-500 flex items-center justify-center">
+            <div className="w-10 h-10 rounded-lg bg-linear-to-br from-purple-500 to-blue-500 flex items-center justify-center">
               <User className="w-5 h-5 text-white" />
             </div>
           )}

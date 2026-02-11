@@ -21,7 +21,7 @@ export function LoadingSpinner({ size = 'md', message, className }: LoadingSpinn
                 <div
                     className={cn(
                         'absolute inset-0 rounded-full blur-md opacity-50',
-                        'bg-gradient-to-r from-purple-500 to-blue-500',
+                        'bg-linear-to-r from-purple-500 to-blue-500',
                     )}
                 />
                 {/* Spinner icon */}
@@ -59,7 +59,7 @@ export function LoadingOverlay({ message, progress, subtitle }: LoadingOverlayPr
                     <div className="w-full">
                         <div className="h-2 bg-muted rounded-full overflow-hidden">
                             <div
-                                className="h-full bg-gradient-to-r from-purple-500 to-blue-500 transition-all duration-300"
+                                className="h-full bg-linear-to-r from-purple-500 to-blue-500 transition-all duration-300"
                                 style={{ width: `${progress}%` }}
                             />
                         </div>

@@ -24,7 +24,6 @@ import type { Style } from '@/services/api/stylesService';
 import type { Character } from '@/services/api/charactersService';
 import { base64ToDataUrl } from '@/utils/imageProcessing';
 import { generateImageWithLogging, buildImagePrompt } from '@/services/api/geminiService';
-import { ErrorMessage } from '@/components/shared/ErrorMessage';
 import { ImageGeneratingModal } from '@/components/shared/ImageGeneratingModal';
 import { ImagePreviewModal } from '@/components/shared/ImagePreviewModal';
 import { StyleSelectorModal } from '@/components/shared/StyleSelectorModal';
@@ -48,7 +47,7 @@ const USD_TO_MXN = 17.5;
 
 export function Step3_ImageGeneration() {
     const { user } = useAuth();
-    const { state, prevStep, setStep, setSelectedStyle: setGlobalStyleId, setSelectedCharacter: setGlobalCharacterId } = useApplication();
+    const { state, setStep, setSelectedStyle: setGlobalStyleId, setSelectedCharacter: setGlobalCharacterId } = useApplication();
     const { key: apiKey } = useApiKey();
 
     const [selectedStyle, setSelectedStyle] = useState<Style | null>(null);
@@ -66,7 +65,7 @@ export function Step3_ImageGeneration() {
 
     // Pro Builder State
     const [useProBuilder, setUseProBuilder] = useState(false);
-    const canUseProBuilder = user?.id === 'fb430091-ddba-4aa7-82d6-228528124087';
+    const canUseProBuilder = user?.role === 'pro';
 
     // Form state
     const [escena, setEscena] = useState('');
@@ -107,6 +106,9 @@ export function Step3_ImageGeneration() {
         loadData();
     }, [state.selectedStyleId, state.selectedCharacterId]);
 
+    useEffect(() => {
+        console.log(error)
+    }, [error])
     const handleStyleSwap = (newStyle: Style) => {
         setSelectedStyle(newStyle);
         setGlobalStyleId(newStyle.id);
@@ -270,14 +272,14 @@ export function Step3_ImageGeneration() {
                 {/* Middle Column: Config */}
                 <div className="lg:col-span-5 space-y-6">
                     {/* AI Builder */}
-                    <div className="glass p-1 rounded-2xl bg-gradient-to-br from-cyan-500/10 to-blue-500/10">
+                    <div className="glass p-1 rounded-2xl bg-linear-to-br from-cyan-500/10 to-blue-500/10">
                         <div className="bg-background/50 backdrop-blur-xl rounded-xl overflow-hidden">
                             <button
                                 onClick={() => setShowSceneBuilder(!showSceneBuilder)}
                                 className="w-full px-5 py-4 flex items-center justify-between hover:bg-white/5 transition-colors"
                             >
                                 <div className="flex items-center gap-3">
-                                    <div className="p-2 rounded-lg bg-gradient-to-br from-cyan-500 to-blue-500 text-white shadow-lg shadow-cyan-500/20">
+                                    <div className="p-2 rounded-lg bg-linear-to-br from-cyan-500 to-blue-500 text-white shadow-lg shadow-cyan-500/20">
                                         <Wand2 className="w-4 h-4" />
                                     </div>
                                     <div className="text-left">
@@ -384,7 +386,7 @@ export function Step3_ImageGeneration() {
                         <Button
                             onClick={handleGenerate}
                             disabled={!isFormValid || isGenerating}
-                            className="w-full mt-4 bg-gradient-to-br from-cyan-500 to-blue-500 py-6 text-base shadow-xl shadow-cyan-500/20 hover:scale-[1.02] transition-transform"
+                            className="w-full mt-4 bg-linear-to-br from-cyan-500 to-blue-500 py-6 text-base shadow-xl shadow-cyan-500/20 hover:scale-[1.02] transition-transform"
                         >
                             {isGenerating ? (
                                 <>

@@ -5,7 +5,7 @@ const ACCESS_TOKEN_KEY = 'clipify_access_token';
 const REFRESH_TOKEN_KEY = 'clipify_refresh_token';
 
 // API base URL
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://clips.sonorodigital.com.mx/api';
 
 // Auth endpoints that should not trigger token refresh
 const AUTH_ENDPOINTS = ['/auth/login', '/auth/register', '/auth/refresh', '/auth/verify'];

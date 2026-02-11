@@ -71,7 +71,7 @@ export function Step0_ApiKeySetup() {
             <div className="glass-card p-8">
                 {/* Header */}
                 <div className="text-center mb-8">
-                    <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-purple-500 to-blue-500 flex items-center justify-center">
+                    <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-linear-to-br from-purple-500 to-blue-500 flex items-center justify-center">
                         <Key className="w-8 h-8 text-white" />
                     </div>
                     <h2 className="text-2xl font-bold gradient-text">Connect Your API Key</h2>

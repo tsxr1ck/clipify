@@ -29,7 +29,7 @@ export function ErrorMessage({
         >
             <div className="flex items-start gap-3">
                 {/* Icon */}
-                <div className="flex-shrink-0">
+                <div className="shrink-0">
                     <AlertCircle className="w-5 h-5 text-destructive" />
                 </div>
 
@@ -60,7 +60,7 @@ export function ErrorMessage({
                 {onDismiss && (
                     <button
                         onClick={onDismiss}
-                        className="flex-shrink-0 p-1 rounded-md hover:bg-destructive/10 transition-colors"
+                        className="shrink-0 p-1 rounded-md hover:bg-destructive/10 transition-colors"
                         aria-label="Dismiss error"
                     >
                         <XCircle className="w-5 h-5 text-destructive/70 hover:text-destructive" />
@@ -96,7 +96,7 @@ export function SuccessMessage({
         >
             <div className="flex items-start gap-3">
                 {/* Icon */}
-                <div className="flex-shrink-0">
+                <div className="shrink-0">
                     <div className="w-5 h-5 rounded-full bg-emerald-500 flex items-center justify-center">
                         <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
@@ -116,7 +116,7 @@ export function SuccessMessage({
                 {onDismiss && (
                     <button
                         onClick={onDismiss}
-                        className="flex-shrink-0 p-1 rounded-md hover:bg-emerald-500/10 transition-colors"
+                        className="shrink-0 p-1 rounded-md hover:bg-emerald-500/10 transition-colors"
                         aria-label="Dismiss"
                     >
                         <XCircle className="w-5 h-5 text-emerald-500/70 hover:text-emerald-500" />

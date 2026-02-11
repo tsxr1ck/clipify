@@ -108,7 +108,7 @@ export function Header({ onMenuClick, toggleTheme, theme }: HeaderProps) {
                         <Button variant="ghost" className="relative h-8 w-8 rounded-full pointer-events-auto p-0 hover:scale-105 transition-transform">
                             <Avatar className="h-8 w-8 border border-primary/20 bg-background">
                                 <AvatarImage src={user?.profile?.avatarUrl} alt={user?.email || 'User'} className="object-cover" />
-                                <AvatarFallback className="bg-gradient-to-br from-primary to-purple-500 text-white text-xs font-bold">
+                                <AvatarFallback className="bg-linear-to-br from-primary to-purple-500 text-white text-xs font-bold">
                                     {user?.email?.substring(0, 2).toUpperCase()}
                                 </AvatarFallback>
                             </Avatar>

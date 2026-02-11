@@ -26,7 +26,7 @@ export function MobileBottomNav() {
             {({ isActive }) => (
               <>
                 {isActive && (
-                  <div className="absolute top-0 inset-x-0 h-0.5 bg-gradient-to-r from-transparent via-primary to-transparent shadow-[0_0_10px_rgba(var(--primary),0.5)]" />
+                  <div className="absolute top-0 inset-x-0 h-0.5 bg-linear-to-r from-transparent via-primary to-transparent shadow-[0_0_10px_rgba(var(--primary),0.5)]" />
                 )}
                 {isActive && (
                   <div className="absolute inset-0 bg-primary/5 rounded-xl m-1" />

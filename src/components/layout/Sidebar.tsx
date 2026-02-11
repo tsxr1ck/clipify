@@ -4,7 +4,6 @@ import {
     Image,
     Wand2,
     Library,
-    Settings,
     Home,
     ChevronLeft,
     Menu,
@@ -45,12 +44,12 @@ export function Sidebar({ className }: SidebarProps) {
                 collapsed ? "justify-center px-0" : "justify-between"
             )}>
                 <div className="flex items-center gap-3">
-                    <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-purple-500 to-blue-600 flex items-center justify-center shadow-lg shadow-purple-500/20">
+                    <div className="w-9 h-9 rounded-xl bg-linear-to-br from-purple-500 to-blue-600 flex items-center justify-center shadow-lg shadow-purple-500/20">
                         <Sparkles className="w-5 h-5 text-white" />
                     </div>
                     {!collapsed && (
                         <div className="flex flex-col">
-                            <span className="font-bold text-lg tracking-tight bg-gradient-to-r from-foreground to-foreground/70 bg-clip-text text-transparent">
+                            <span className="font-bold text-lg tracking-tight bg-linear-to-r from-foreground to-foreground/70 bg-clip-text text-transparent">
                                 Clipify
                             </span>
                             <span className="text-[10px] text-muted-foreground font-medium uppercase tracking-wider">
